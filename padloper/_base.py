@@ -474,6 +474,7 @@ class Vertex(Element):
         arg = {"_id": attrs["id"],
                "_time_added": attrs["time_added"],
                "_uid_added": attrs["uid_added"]}
+
         for a in cls._vertex_attrs:
             if issubclass(a.type, Vertex):
                 len_a = len(attrs[a.name])
@@ -501,7 +502,7 @@ class Vertex(Element):
                 arg[a.name] = Timestamp._from_dict(attrs, "%s_" % a.name)
             else:
                 arg[a.name] = attrs[a.name]
-
+            
         return Vertex._cache_vertex(cls(**arg))
 
     @classmethod
@@ -521,17 +522,20 @@ class Vertex(Element):
 
 
     @authenticated
-    def add(self, strict_add=False, permissions=None):
+    def add(self, strict_add=False, strict_check=True, permissions=None):
         """Add the vertex to the Janusgraph DB.
 
         :param strict_add: If False, then do not throw an error if the vertex
             already exists.
         :type strict_add: bool
+        :param strict_check: If False, then add the vertex even if a vertex 
+            exists in the database with the same name and category.
+        : type strict_check: bool
 
         :return: self
         :rtype: self
         """
-        if self.in_db():
+        if self.in_db(strict_check=strict_check):
             strictraise(strict_add, VertexAlreadyAddedError,
                         f"Vertex already exists in the database.")
             return self.__class__.from_db(self.name)
@@ -705,7 +709,7 @@ class Vertex(Element):
                             "the vertex it is replacing.")
 
         if not newVertex.in_db(strict_check=False):
-            newVertex.add(strict_add=True)
+            newVertex.add(strict_add=True, strict_check=False)
 
         # The 'replacement' property now points to the new vertex that replaced
         # the self vertex, and it needs to be disabled.
@@ -1055,7 +1059,7 @@ class Edge(Element):
 
             e = traversal.next()
 
-            self._set_id(e.id)
+            self._set_id(e.id['@value']['relationId'])
 
     @authenticated
     def added_to_db(self, permissions=None) -> bool:
@@ -1073,7 +1077,6 @@ class Edge(Element):
             g.t.E(self.id()).count().next() > 0
         )
 
-
     @authenticated
     def disable(self, disable_time: int = int(time.time()),
                 permissions=None):
@@ -1085,6 +1088,40 @@ class Edge(Element):
         g.t.E(self.id()).property('active', False)\
                         .property('time_disabled', disable_time).iterate()
 
+    @authenticated                        
+    def replace(self, newEdge, disable_time: int = int(time.time()),
+                permissions=None):
+        """Replaces the edge in the JanusGraph DB with a new edge by
+        changing its property 'active' from true to false, and storing the id
+        of the new edge as an attribute.
+
+        :param newEdge: The new edge that is replacing this edge.
+        :type newEdge: Edge
+
+        :param disable_edge: When this edge was disabled in the database (UNIX
+            time).
+        :type disable_time: int
+
+        :return: newEdge
+        :rtype: Edge
+        """
+        if newEdge.category != self.category:
+            raise TypeError("The new edge must be of the same category as "\
+                            "the edge it is replacing.")
+
+        if not newEdge.added_to_db():     # make sure new edge in db
+            newEdge.add()
+
+        # The 'replacement' property now points to the new edge that replaced
+        # the self edge, and the self edge needs to be disabled.
+        g.t.E(self.id()).property('replacement', newEdge.id()) \
+                        .property('active', False) \
+                        .property('time_disabled', disable_time) \
+                        .property('uid_disabled', _get_user()).iterate()
+
+        return newEdge
+
+        
     @authenticated
     def other_vertex(self, v, permissions=None):
         """Given one vertex of this edge, return the other.
