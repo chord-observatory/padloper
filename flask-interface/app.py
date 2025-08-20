@@ -3,8 +3,9 @@
 #from crypt import methods
 from re import split
 from flask import Flask, request, session
+from flask_session import Session
 import requests
-from flask.scaffold import F
+#from flask.scaffold import F
 from gremlin_python.process.traversal import TextP
 from markupsafe import escape
 import time
@@ -21,9 +22,13 @@ app.secret_key = os.urandom(24)
 # set this to the oauth-proxy-server URL
 PROXY_SERVER_URL = 'http://localhost:4000/'
 
-#CONTINUE HERE: user authentication not properly set, I don't think.
-p.set_user("test")
+# Set up session: we use flask_session because the default Flask session is
+# client size and we don't want to expose permissions there; here we use a
+# server-side configuration.
+app.config["SESSION_TYPE"] = "filesystem"
+app.config["SECRET_KEY"] = "qkt9arv@gdb6AER@cxf"
 
+#CONTINUE HERE: test user authentication.
 def tmp_timestamp(t, uid, comments):
     print("Note: needs to be replaced with proper user registration.")
     return p.Timestamp.__raw_init__(t, uid, int(time.time()), comments)
@@ -73,21 +78,14 @@ def parse_filters(filtstr, attrs, funcs):
 def set_perms(username):
     """ Get user permissions from the database, and set as a sessions variable. 
     """
-    try:
-        user = p.User.from_db(username)
-        perms = user.get_permissions()
-        if perms:
-            session['perms'] = perms
-        else:
-            session['perms'] = []
-
-
-    except Exception as e:
-
-        # For printing the exception in the terminal.
-        print(e)
-
-        return {'error': json.dumps(e, default=str)}
+    print("------------------")
+    print(username)
+    user = p.User.from_db(username)
+    perms = user.get_permissions()
+    if perms:
+        session['perms'] = perms
+    else:
+        session['perms'] = []
 
 
 @app.route("/api/login", methods=['POST'])
@@ -117,7 +115,6 @@ def login():
             data = response.json()
 
             if data.get('login') == username:
-                session['user'] = username
                 set_perms(username)
                 return ({'message': f'Logged in as {username}'}), 200
             else:
@@ -132,7 +129,7 @@ def login():
         # For printing the exception in the terminal.
         print(e)
 
-        return {'error': json.dumps(e, default=str)}
+        return {'error': json.dumps(e, default=str)}, 401
     
 
 @app.route("/api/logout", methods=['POST'])
@@ -159,7 +156,9 @@ def get_component_by_name(name):
     :rtype: dict
     """
     return {
-        'result': p.Component.from_db(str(escape(name)), permissions=session.get('perms')).as_dict(permissions=session.get('perms'))
+        'result': p.Component.from_db(str(escape(name)),
+                                      permissions=session.get('perms'))\
+                   .as_dict(permissions=session.get('perms'))
     }
 
 
@@ -741,8 +740,7 @@ def get_component_type_list():
     types = p.ComponentType.get_list(
         range=range_bounds,
         order_by=[(order_by, order_direction)],
-        filters=[{"name": TextP.containing(name_substring)}],
-        permissions=session.get('perms')
+        filters=[{"name": TextP.containing(name_substring)}]
     )
     
     return {"result": [t.as_dict() for t in types]}
@@ -2070,7 +2068,7 @@ def new_set_user_group():
         # user, group = p.User.from_db(val_user), p.UserGroup.from_db(val_group)
         for gr in groups:
             group = p.UserGroup.from_db(gr)
-            user.set_group(group)
+            user.add_group(group)
 
         return {'result': True}
 

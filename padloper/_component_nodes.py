@@ -628,7 +628,7 @@ class Component(Vertex):
             
         else:  # to_replace is not None:
             curr_conn = self.get_connections(comp=comp, 
-                                             at_time=to_replace.start.time
+                                             at_time=to_replace.start.time,
                                              permissions=permissions)
             
             if len(curr_conn) == 0:
@@ -728,7 +728,7 @@ class Component(Vertex):
 
         if len(curr_conn) == 0:
             # Not connected yet!
-            raise NotInDatabase (
+            raise ComponentsAlreadyDisconnectedError (
                 f"Components {self.name} and {comp.name} " +
                 "are already disconnected at this time."
             )

@@ -22,15 +22,13 @@ function Header() {
     const open = Boolean(anchorEl);
     const [userData, setUserData] = useState({});
     const { accessToken, setAccessToken } = useContext(OAuthContext); 
-    const navigate = useNavigate()
+    const navigate = useNavigate();
+    let login_ok = true;
 
     useEffect(() => {
         // TODO: remove local storage
-        if (localStorage.getItem("accessToken")) {
-        // if (accessToken) {
-            // console.log(accessToken)
+        if (localStorage.getItem("accessToken"))
             getUserData();
-        }
     }, []
     // [accessToken]
     )
@@ -38,7 +36,7 @@ function Header() {
     // login to backend
     useEffect(() => {
         // userData ? userData.login : ''
-        if (userData.login) {
+        if (userData.login && false) {
             axios.post("/api/login", {
                 username: userData.login,
                 accessToken: localStorage.getItem("accessToken")
@@ -47,7 +45,9 @@ function Header() {
                 console.log(res.data)
             })
             .catch(err => {
-                console.error('Error:', err);
+//                console.error('Error:', err);
+                console.log(err.response.data.error);
+//                localStorage.removeItem("accessToken");
             })
         }
     }, [userData])
@@ -61,7 +61,8 @@ function Header() {
 
     // TODO: export function to use elsewhere
     async function getUserData() {
-    await fetch(`${process.env.OAUTH_URL || "http://localhost"}:4000/getUserData`, {
+    await fetch(`${process.env.OAUTH_URL ||
+                "http://localhost"}:4000/getUserData`, {
         method: "GET",
         headers: {
             "Authorization": "Bearer " + localStorage.getItem('accessToken')
@@ -76,7 +77,6 @@ function Header() {
 
     // TODO: change to network context
     if (localStorage.getItem("accessToken") === null) {
-    // if (!accessToken) {
         return <></>;
     }
     return (

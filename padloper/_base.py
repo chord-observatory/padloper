@@ -87,7 +87,7 @@ permissions_set = {
 
     # Property:
     # protected
-    'Property;_add',
+    'Property;add',
 
     # FlagType:
     # protected
@@ -108,21 +108,18 @@ permissions_set = {
     'Flag;set_end',
 }
 
-#CONTINUE HERE: format the following and copy the rest from _permissions. Also go
-#through and check that permissions are part of everything …
-
 def check_permission(permission, class_name, method_name):
     """Called by the @authenticated decorator."""
-    print(f"{class_name};{method_name}")
+    #print(f"{class_name};{method_name}")
     if permission is None:
         # Check for global variable. User to be stored as a user vertex.
         try:
-            user = g._user['id']
+            user = _get_user()
         except Exception as e:
             raise NoPermissionsError("User not set.")
 
-        if isinstance(user, str):
-            user = User.from_db(user)
+#        if isinstance(user, str):
+#            user = User.from_db(user)
         permission = user.get_permissions()
 
     # Raise error if user does not have all required permissions.
@@ -141,10 +138,8 @@ def authenticated(func):
     """A custom decorator for authentication of methods."""
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # get the class name
-        class_name = func.__qualname__.split('.')[0]
-
-        # get the method name
+        # Get the class and method names.
+        class_name = args[0].__class__.__name__
         method_name = func.__name__
 
         # get the permissions
@@ -174,13 +169,13 @@ def set_user(uid):
     :type attributes: string
     """
     # TODO: get user from db
-
-    g._user = dict()
-    g._user["id"] = uid
+    g._user = User.from_db(uid)
+#    g._user = dict()
+#    g._user["id"] = uid
 
 def _get_user():
     try:
-        return g._user["id"]
+        return g._user
     except TypeError:
         raise RuntimeError(
             "You must call padloper.set_user() before performing this "\
@@ -361,6 +356,12 @@ class Vertex(Element):
         self.replacement = 0
         self.active = True
         Element.__init__(self, _id)
+    
+    def __repr__(self):
+        if self.primary_attr is None:
+            return str(self._id)
+        else:
+            return str(getattr(self, self.primary_attr))
 
     def _validate(self, **kwargs):
         """This method gets called at the beginning of __init__(); overload it
@@ -540,7 +541,7 @@ class Vertex(Element):
                         f"Vertex already exists in the database.")
             return self.__class__.from_db(self.name)
         else:
-            self.uid_added = _get_user()
+            self.uid_added = _get_user().name
             self.time_added = int(time.time())
             self.active = True
             self.replacement = 0
@@ -716,7 +717,7 @@ class Vertex(Element):
         g.t.V(self.id()).property('replacement', newVertex.id()) \
                         .property('active', False) \
                         .property('time_disabled', disable_time) \
-                        .property('uid_disabled', _get_user()).iterate()
+                        .property('uid_disabled', _get_user().name).iterate()
 
         # List of all the properties of the outgoing edges from the self vertex.
         o_edges_values_list = g.t.V(self.id()).bothE().valueMap().toList()
@@ -1015,6 +1016,36 @@ class Edge(Element):
         self.inVertex = inVertex
         self.outVertex = outVertex
 
+    @classmethod
+    def from_db(cls, id: int, allow_disabled: bool = False):
+        """Query the database and return an instance of the Edge, given its ID.
+        
+        :param id: The ID of the edge
+        :type primary_attr: int
+        :param allow_disabled: Whether to only select edgeswith active=True.
+        :type allow_disabled: bool
+
+        :return: The edge.
+        :rtype: Edge.
+
+        """
+        d = g.t.E(id)
+        if not allow_disabled:
+            d.has("active", True)
+        try:
+            d = d.next()
+        except StopIteration:
+            raise NotInDatabase("Could not find %s in the DB." %\
+                                primary_attr)
+
+#        Element.__init__(self, id)
+#
+#        self.inVertex = inVertex
+#        self.outVertex = outVertex
+#
+#        return cls._from_attrs(d) 
+
+
     @authenticated
     def add(self, attributes: dict, permissions=None):
         """Add an edge between two vertices in JanusGraph.
@@ -1117,7 +1148,7 @@ class Edge(Element):
         g.t.E(self.id()).property('replacement', newEdge.id()) \
                         .property('active', False) \
                         .property('time_disabled', disable_time) \
-                        .property('uid_disabled', _get_user()).iterate()
+                        .property('uid_disabled', _get_user().name).iterate()
 
         return newEdge
 
@@ -1158,7 +1189,7 @@ class Timestamp(object):
     def __init__(self, at_time, comments=""):
         """For creating a new timestamp, rather than reading in from the DB.
         """
-        self.uid = _get_user()
+        self.uid = _get_user().name
         self.time = at_time
         self.edit_time = int(time.time())
         self.comments = comments
@@ -1331,85 +1362,6 @@ class TimestampedEdge(Edge):
         return ret
 
 
-class User(Vertex):
-    """
-    The representaiton of a user vertex. Contains a name attirbute,
-    and institution attribute.
-
-    :ivar name: The username of the user.
-    :ivar institution: The institution the user belongs to.
-    """
-
-    category: str = "user"
-    _vertex_attrs: list = [
-        VertexAttr("name", str),
-        VertexAttr("institution", str, optional=True, default="")
-    ]
-    primary_attr: str = "name"
-
-    def set_group(self, group, strict_add: bool=True):
-        """
-        Given a UserGroup :param group, connect this User to this group.
-
-        :param group: A UserGroup to connect this User to
-        :type group: UserGroup
-        """
-        if not self.in_db():
-            raise UserNotAddedError(
-                f"User {self.name} has not yet been added to the database."
-            )
-
-        if not group.in_db():
-            raise UserGroupNotAddedError(
-                f"UserGroup {group.name} has not yet been added to the "\
-                 "database."
-            )
-
-        group_edge = RelationUserGroup(
-            inVertex=self,
-            outVertex=group
-        )
-
-        group_edge.add()
-
-    def get_groups(self):
-        from _edges import RelationUserGroup
-
-        if not self.in_db():
-            raise UserNotAddedError(
-                f"User {self.name} has not yet been added to the database."
-            )
-
-        query = g.t.V(self.id()).bothE(RelationUserGroup.category)\
-                .as_('e').valueMap().as_('edge_props')\
-                .select('e').otherV().id_().as_('vertex_id')\
-                .select('edge_props', 'vertex_id').toList()
-
-        # Build up the result 
-        result = []
-        for q in query:
-            group = UserGroup.from_id(q['vertex_id'])
-            edge = RelationUserGroup(
-                inVertex=group,
-                outVertex=self,
-            )
-            result.append([group, edge])
-
-        return result
-
-    def get_permissions(self) -> set:
-        # Store perms
-        perms = []
-
-        groups = self.get_groups()
-        for group in groups:
-            group_perms = group[0].permissions
-            perms.extend(group_perms)
-
-        # Make unique
-        return list(set(perms))
-
-
 class UserGroup(Vertex):
     """
     Represents a user group vertex in JanusGraph.
@@ -1420,8 +1372,130 @@ class UserGroup(Vertex):
     category: str = "user_group"
     _vertex_attrs: list = [
         VertexAttr("name", str),
-        VertexAttr("permissions", str, is_list=True)
+        VertexAttr("permissions", str, is_list=True),
+        VertexAttr("comments", str, optional=True)
     ]
+    primary_attr: str = "name"
+
+    def _validate(self, **kwargs):
+        """This is called by the initialiser; check that permissions are
+        valid."""
+        for p in kwargs["permissions"]:
+            if p not in permissions_set:
+                raise ValueError("Unknown permission \"%s\"." % p)
+
+#    def add_permission(self, permission, strict_add=False):
+
+
+class User(Vertex):
+    """
+    The representaiton of a user vertex. Contains a name attirbute,
+    and institution attribute.
+
+    :ivar name: The username of the user.
+    :ivar institution: The institution the user belongs to.
+    """
+    from _edges import RelationUserGroup
+
+    category: str = "user"
+    _vertex_attrs: list = [
+        VertexAttr("name", str),
+        VertexAttr("groups", UserGroup, edge_class=RelationUserGroup,
+                   is_list=True)
+    ]
+    primary_attr: str = "name"
+
+#    def add_group(self, group, strict_add: bool=False):
+#        """
+#        Given a UserGroup :param group, connect this User to this group.
+#
+#        :param group: A UserGroup to connect this User to
+#        :type group: UserGroup
+#        """
+#        from _edges import RelationUserGroup
+#
+#        if not self.in_db():
+#            raise UserNotAddedError(
+#                f"User {self.name} has not yet been added to the database."
+#            )
+#
+#        if not group.in_db():
+#            raise UserGroupNotAddedError(
+#                f"UserGroup {group.name} has not yet been added to the "\
+#                 "database."
+#            )
+#
+#        if group not in self.get_groups():
+#            e = RelationUserGroup(inVertex=self, outVertex=group)
+#            e.add()
+#        else:
+#            strictraise(strict_add, AlreadyInDatabase,
+#                        "User %s is already in group %s." %\
+#                        (self.name, group.name))
+#
+#    def remove_group(self, group, strict_remove: bool=False):
+#        """
+#        Given a UserGroup :param group, connect this User to this group.
+#
+#        :param group: A UserGroup to connect this User to
+#        :type group: UserGroup
+#        """
+#        from _edges import RelationUserGroup
+#
+#        if not self.in_db():
+#            raise UserNotAddedError(
+#                f"User {self.name} has not yet been added to the database."
+#            )
+#
+#        if not group.in_db():
+#            raise UserGroupNotAddedError(
+#                f"UserGroup {group.name} has not yet been added to the "\
+#                 "database."
+#            )
+#
+#        if group in self.get_groups():
+#            e = g.t.V(self.id()).bothE(RelationUserGroup.category)\
+#                 .has("active", True)\
+#                 .as_("e").otherV().has("name", group.name)\
+#                 .select("e").property("active", False).next()
+##            e = RelationUserGroup(inVertex=self, outVertex=group)
+##            e.add()
+#        else:
+#            strictraise(strict_add, AlreadyInDatabase,
+#                        "User %s is not in group %s." %\
+#                        (self.name, group.name))
+#
+#    def get_groups(self, allow_disabled=False):
+#        from _edges import RelationUserGroup
+#
+#        if not self.in_db():
+#            raise UserNotAddedError(
+#                f"User {self.name} has not yet been added to the database."
+#            )
+#
+#        query = g.t.V(self.id()).bothE(RelationUserGroup.category)
+#        if not allow_disabled:
+#            query = query.has("active", True)
+#        query = query.as_('e').valueMap().as_('edge_props')\
+#                     .select('e').otherV().id_().as_('vertex_id')\
+#                     .select('edge_props', 'vertex_id').toList()
+#
+#        # Build up the result 
+#        result = []
+#        for q in query:
+#            result.append(UserGroup.from_id(q['vertex_id']))
+#
+#        return result
+
+    def get_permissions(self) -> set:
+        # Store perms
+        perms = []
+
+        for group in self.groups:
+            perms.extend(group.permissions)
+
+        # Make unique
+        return list(set(perms))
 
 
 class Permission(object):

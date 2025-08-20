@@ -34,7 +34,9 @@ function App() {
    */
 
   window.addEventListener("error", (e) => {
-    if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || e.message === 'ResizeObserver loop limit exceeded') {
+    if (e.message === "ResizeObserver loop completed with undelivered " +
+        "notifications." || 
+        e.message === 'ResizeObserver loop limit exceeded') {
       console.log("Oh, yeah!!!!");
 //      e.stopImmediatePropagation();
     }
@@ -132,13 +134,10 @@ function App() {
           />
 
          
-
           {
-            /**
-             * A ReactFlowProvider is wrapped around the visualizer to
-             * give it access to the React Flow hooks:
-             * https://reactflow.dev/docs/api/react-flow-provider/
-             */
+            // A ReactFlowProvider is wrapped around the visualizer to give it
+            // access to the React Flow hooks:
+            // https://reactflow.dev/docs/api/react-flow-provider/
           }
           <Route 
             exact={true} 
