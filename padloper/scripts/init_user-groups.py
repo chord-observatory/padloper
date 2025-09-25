@@ -1,6 +1,6 @@
 import argparse
 import padloper as p
-from padloper import _global as g
+import _global as g
 
 
 PROTECTED_PERMISSIONS = [
@@ -56,7 +56,8 @@ def ensure_user(name):
     try:
         return p.User.from_db(name)
     except Exception:
-        u = p.User(name=name)
+        # groups is a required attribute for User; pass empty list
+        u = p.User(name=name, groups=[])
         u.add(permissions=[])
         return u
 
@@ -75,13 +76,13 @@ def main():
     ap.add_argument('--actor', default='master', help='DB user to attribute writes as (default: master)')
     args = ap.parse_args()
 
-    # Set a stub actor for write stamping immediately; then try to set a real user
+    # Ensure an actor is available for write stamping and permissions.
+    # 1) Set a temporary stub so Vertex.add can stamp uid/time.
     g._user = type("_Stub", (), {"name": args.actor})()
-    try:
-        p.set_user(args.actor)
-    except Exception:
-        # keep stub
-        pass
+    # 2) Ensure the actor user exists (will use the stub for stamping).
+    ensure_user(args.actor)
+    # 3) Now switch to a real User object so authenticated checks work.
+    p.set_user(args.actor)
 
     if args.reset_default_groups:
         for nm in ('Protected', 'General', 'Default'):

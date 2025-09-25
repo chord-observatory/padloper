@@ -28,6 +28,34 @@ wait_for_schema() {
   sleep "$delay"
 }
 
+# Probe whether the basic schema and seed data exist (master user).
+schema_probe() {
+  require_container
+  # Ensure gremlin is up to avoid false negatives
+  wait_for_gremlin >/dev/null 2>&1 || return 1
+  if docker exec -i "$JANUS_CONTAINER" sh -lc "printf ':remote connect tinkerpop.server conf/remote.yaml session\n:> g.V().has(\"category\",\"user\").has(\"name\",\"master\").limit(1).count()\n:> :remote close\n:exit\n' | bin/gremlin.sh 2>/dev/null | tr -d '\r' | grep -q '==>1'"; then
+    echo "EXISTS"
+  else
+    echo "MISSING"
+  fi
+}
+
+# Wait until gremlin server in janusgraph container accepts connections
+wait_for_gremlin() {
+  local tries=${1:-60}
+  local delay=${2:-2}
+  echo "[bootstrap] Waiting for JanusGraph Gremlin server …"
+  for i in $(seq 1 "$tries"); do
+    if docker exec -i "$JANUS_CONTAINER" sh -lc "printf ':remote connect tinkerpop.server conf/remote.yaml session\n:> 1+1\n:> :remote close\n:exit\n' | bin/gremlin.sh >/dev/null 2>&1"; then
+      echo "[bootstrap] Gremlin server is ready."
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "Error: Timed out waiting for Gremlin server to become ready." >&2
+  return 1
+}
+
 require_container() {
   if ! docker ps --format '{{.Names}}' | grep -qx "$JANUS_CONTAINER"; then
     echo "Error: Container '$JANUS_CONTAINER' is not running. Run 'docker compose up -d' first." >&2
@@ -44,13 +72,24 @@ require_backend() {
 
 cmd_schema() {
   require_container
+  # Ensure Gremlin server is up before attempting schema
+  wait_for_gremlin
+  # Skip schema apply if it already appears present
+  if [ "$(schema_probe)" = "EXISTS" ]; then
+    echo "[bootstrap] Schema appears to exist; skipping apply."
+    wait_for_schema 2
+    return 0
+  fi
   if [ ! -f "$REPO_ROOT/index_setup.txt" ]; then
     echo "Error: index_setup.txt not found at repo root." >&2
     exit 1
   fi
   echo "[bootstrap] Applying schema and seeding admin via index_setup.txt …"
   # Filter out comment lines starting with '#' which Groovy won't accept.
-  sed -E '/^[[:space:]]*#/d' "$REPO_ROOT/index_setup.txt" | docker exec -i "$JANUS_CONTAINER" bin/gremlin.sh
+  if ! sed -E '/^[[:space:]]*#/d' "$REPO_ROOT/index_setup.txt" | docker exec -i "$JANUS_CONTAINER" bin/gremlin.sh >/dev/null; then
+    echo "Error: Failed to apply schema via Gremlin console." >&2
+    exit 1
+  fi
   echo "[bootstrap] Schema applied."
   # Wait until the schema is visible on the server before proceeding.
   wait_for_schema 5
@@ -73,6 +112,8 @@ cmd_map_admin() {
   fi
   echo "[bootstrap] Mapping user '$login' to admin group (creating user/group if missing) …"
   require_backend
+  # Ensure Gremlin server is up before Python tries to connect
+  wait_for_gremlin
   docker exec -i "$FLASK_CONTAINER" sh -lc "export PYTHONPATH=\$PYTHONPATH:/; python3 -m padloper.scripts.init_user-groups --skip-default-groups --ensure-admin '$login' --actor master"
   echo "[bootstrap] Admin mapping complete for '$login'."
 }

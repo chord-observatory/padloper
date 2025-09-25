@@ -73,12 +73,12 @@ padloper.
   ```
   bin/janusgraph.sh start
   ```
-* Finally, you need to define the schema and seed an initial admin. Open the Gremlin console as described in the next section, and execute the commands in the `index_setup.txt` file. This will:
+* Finally, you need to define the schema and seed an initial admin. Open the Gremlin console as described in the next section, and execute the commands in the `index_setup.txt` file (or use the Bootstrap helper described below). This will:
   * Define all required vertex/edge properties (including the `permissions` list on user groups).
   * Create indices and trigger reindexing.
   * Seed a user named `master`, a user group named `admin` with broad permissions, and connect `admin` to `master`.
 
-  Note: `index_setup.groovy` includes only the schema/indices and does not add the `permissions` property or seed the initial admin user/group. If you choose to run `index_setup.groovy`, also run the seeding commands from the end of `index_setup.txt` to create the initial admin.
+  Note: Both `index_setup.txt` and `index_setup.groovy` define the full schema/indices and include seeding of the initial `master` user and `admin` group. The bootstrap helper streams `index_setup.txt` into the Gremlin console inside the JanusGraph container.
 
 ## Connecting to JanusGraph
 
@@ -202,16 +202,24 @@ Padloper, run:
 
 ```
 docker exec -it flask-interface sh -c "export PYTHONPATH=$PYTHONPATH:/; python3 padloper/scripts/init_simple-db.py"
-
-### Troubleshooting
-
-- 502 via nginx when calling `/api/*`:
-  - Ensure the backend container is healthy and has all dependencies. Rebuild and restart just the backend with:
-    - `docker compose build flask-interface`
-    - `docker compose up -d flask-interface`
-- Permission or “User not set” errors when writing:
-  - Sign in via the UI (GitHub OAuth), and ensure your username exists in the database and belongs to a group that grants the required permissions (see Authentication, Users, and Permissions above).
 ```
+
+### Bootstrap Helper
+
+To initialize the graph schema and map your GitHub user to the `admin` group, you can use `scripts/bootstrap_graph.sh`.
+
+- Prerequisite: start the stack first:
+  - `docker compose up -d`
+- Default (apply schema if missing, then map user to admin):
+  - `bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN`
+- Schema only:
+  - `bash scripts/bootstrap_graph.sh schema`
+- Map user to admin only (requires schema already applied):
+  - `bash scripts/bootstrap_graph.sh map-admin YOUR_GH_LOGIN`
+- The script waits for JanusGraph’s Gremlin server to become ready; if schema appears to exist (seeded `master` user), it will skip reapplying it.
+- Override container names if you customized compose service names:
+  - `JANUS_CONTAINER=janusgraph FLASK_CONTAINER=flask-interface bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN`
+
 
 ### Brief explanation of Nginx and Gunicorn
 
