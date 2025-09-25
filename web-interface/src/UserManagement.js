@@ -8,6 +8,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableRow from '@mui/material/TableRow';
 import axios from 'axios';
+import { withBase } from './paths.js';
 
 function UserManagementPage() {
     const [users, setUsers] = useState([]);
@@ -33,7 +34,7 @@ function UserManagementPage() {
     const fetchUsers = () => {
        
         let input = '/api/get_user_list'
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
             ).then(data => {
                 console.log(data)
@@ -45,7 +46,7 @@ function UserManagementPage() {
         // Mocking user groups data for demonstration
        
         let input = '/api/get_user_group_list'
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setUserGroups(data.result);
@@ -69,7 +70,7 @@ function UserManagementPage() {
         let input = '/api/get_user_groups';
         input += `?username=${selectedUser.name}`
 
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             console.log(data);
@@ -96,7 +97,7 @@ function UserManagementPage() {
                 method: 'POST', 
                 body: formData
               };
-            fetch(input, requestOptions)
+            fetch(withBase(input), requestOptions)
               .then(res => res.json())
               .then(data => {
                 console.log("res", data);

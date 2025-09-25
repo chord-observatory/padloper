@@ -10,6 +10,7 @@ import ComponentVersionFilter from './ComponentVersionFilter.js';
 import ComponentVersionAddButton from './ComponentVersionAddButton.js';
 import ComponentVersionReplaceButton from './ComponentVersionReplaceButton.js';
 import Authenticator from './components/Authenticator.js';
+import { withBase } from './paths.js';
 
 /**
  * A MUI component that renders a list of component versions.
@@ -146,7 +147,7 @@ function ComponentVersionList() {
             }
 
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 setElements(data.result);
@@ -171,7 +172,7 @@ function ComponentVersionList() {
         if (filters.length > 0) {
             input += `?filters=${createFilterString()}`;
         }
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setCount(data.result);
@@ -196,7 +197,7 @@ function ComponentVersionList() {
         input += `&orderBy=name`
         input += `&orderDirection=asc`
         input += `&nameSubstring=`
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setComponentTypes(data.result);

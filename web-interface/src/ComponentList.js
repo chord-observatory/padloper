@@ -10,6 +10,7 @@ import ComponentReplaceButton from './ComponentReplaceButton.js';
 import AlertDialog from './ComponentDisableButton'
 import Authenticator from './components/Authenticator.js';
 import ErrorMessage from './ErrorMessage.js';
+import { withBase } from './paths.js';
 
 /**
  * A MUI component that represents a list of components.
@@ -155,7 +156,7 @@ function ComponentList() {
             }
     
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 (res) => res.json()
             ).then((data) => {
                 if (data.result) {
@@ -184,7 +185,7 @@ function ComponentList() {
     */
     useEffect(() => {
 
-        fetch(`/api/component_count?filters=${createFilterString()}`).then(
+        fetch(withBase(`/api/component_count?filters=${createFilterString()}`)).then(
             (res) => res.json()
         ).then((data) => {
             if (data.result) {
@@ -202,7 +203,7 @@ function ComponentList() {
     When the site is loaded, load all of the component types and versions.
     */
     useEffect(() => {
-        fetch("/api/component_types_and_versions").then(
+        fetch(withBase("/api/component_types_and_versions")).then(
             (res) => res.json()
         ).then((data) => {
             if (data.result) {

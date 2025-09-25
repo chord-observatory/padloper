@@ -14,19 +14,22 @@ import json
 import os
 from datetime import datetime
 from urllib.parse import unquote
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # The flask application
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
 
-# set this to the oauth-proxy-server URL
-PROXY_SERVER_URL = 'http://localhost:4000/'
+# Read configuration from environment, with sensible defaults for local dev
+PROXY_SERVER_URL = os.getenv('PROXY_SERVER_URL', 'http://oauth-proxy-server:4000/')
 
 # Set up session: we use flask_session because the default Flask session is
 # client size and we don't want to expose permissions there; here we use a
 # server-side configuration.
 app.config["SESSION_TYPE"] = "filesystem"
-app.config["SECRET_KEY"] = "qkt9arv@gdb6AER@cxf"
+# Prefer SECRET_KEY, fallback to FLASK_SECRET_KEY, finally a dev default
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", os.getenv("FLASK_SECRET_KEY", "change-me"))
 
 #CONTINUE HERE: test user authentication.
 def tmp_timestamp(t, uid, comments):

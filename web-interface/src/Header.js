@@ -9,6 +9,7 @@ import GithubIcon from "mdi-react/GithubIcon";
 import axios from 'axios'
 import { useState, useEffect, useContext } from 'react';
 import { OAuthContext } from './contexts/OAuthContext';
+import { withBase, authHeaders } from './paths.js';
 
 import HeaderMenuButton from './HeaderMenuButton.js';
 import { useNavigate } from 'react-router-dom';
@@ -37,7 +38,7 @@ function Header() {
     useEffect(() => {
         // userData ? userData.login : ''
         if (userData.login && false) {
-            axios.post("/api/login", {
+            axios.post(withBase("/api/login"), {
                 username: userData.login,
                 accessToken: localStorage.getItem("accessToken")
             })
@@ -61,12 +62,9 @@ function Header() {
 
     // TODO: export function to use elsewhere
     async function getUserData() {
-    await fetch(`${process.env.OAUTH_URL ||
-                "http://localhost"}:4000/getUserData`, {
+    await fetch(withBase(`/oauth/getUserData`), {
         method: "GET",
-        headers: {
-            "Authorization": "Bearer " + localStorage.getItem('accessToken')
-        }
+        headers: { ...authHeaders() }
         }).then((response) => {
             return response.json();
         }).then((data) => {
@@ -201,7 +199,7 @@ function Header() {
                         // remove local storage 
                         onClick={() => { 
                             localStorage.removeItem("accessToken");
-                            axios.post("/api/logout")
+                            axios.post(withBase("/api/logout"))
                             .then(res => {
                                 console.log(res.data)
                             })

@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DialogContentText from '@mui/material/DialogContentText';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorMessage from './ErrorMessage';
+import { withBase } from './paths.js';
 
 
 /*
@@ -72,7 +73,7 @@ const DisableButton = styled((props) => (
         input += `?name=${name}`;
 
         return new Promise((resolve, reject) => {
-          fetch(input).then(
+          fetch(withBase(input)).then(
             (res) => res.json())
             .then((data) => {
               console.log(data);
@@ -123,4 +124,3 @@ const DisableButton = styled((props) => (
     </>
   );
 }
-

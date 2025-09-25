@@ -10,6 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DialogContentText from '@mui/material/DialogContentText';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorMessage from './ErrorMessage';
+import { withBase } from './paths.js';
 
 /*
 A MUI component representing a button for disabling.
@@ -72,7 +73,7 @@ const DisableButton = styled((props) => (
         input += `&name2=${otherName}`;
 
         return new Promise((resolve, reject) => {
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 if (data.result) {
@@ -125,4 +126,3 @@ const DisableButton = styled((props) => (
     </>
   );
 }
-

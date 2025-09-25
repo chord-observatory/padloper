@@ -7,6 +7,7 @@ import Button from '@mui/material/Button'
 import PropertyTypeAddButton from './PropertyTypeAddButton.js';
 import PropertyTypeReplaceButton from './PropertyTypeReplaceButton.js';
 import Authenticator from './components/Authenticator.js';
+import { withBase } from './paths.js';
 
 
 
@@ -143,7 +144,7 @@ export default function PropertyTypeList() {
             }
 
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 setElements(data.result);
@@ -168,7 +169,7 @@ export default function PropertyTypeList() {
         if (filters.length > 0) {
             input += `?filters=${createFilterString()}`;
         }
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setCount(data.result);
@@ -193,7 +194,7 @@ export default function PropertyTypeList() {
         input += `&orderBy=name`
         input += `&orderDirection=asc`
         input += `&nameSubstring=`
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setComponentTypes(data.result);

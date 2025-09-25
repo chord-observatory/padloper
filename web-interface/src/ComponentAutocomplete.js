@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
+import { withBase } from './paths.js';
 
 /**
  * An Autocomplete component that queries the component list in the DB and gives
@@ -45,7 +46,7 @@ export default function ComponentAutocomplete(
             input += `&filters=${entered_string},,`; // double comma needed
     
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 // get rid of the element with the same name 

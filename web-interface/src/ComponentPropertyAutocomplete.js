@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
+import { withBase } from './paths.js';
 
 /**
  * An Autocomplete component that queries the component property list in the DB 
@@ -54,7 +55,7 @@ export default function ComponentPropertyAutocomplete(
             input += `&nameSubstring=${entered_string}`;
     
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 setOptions(data.result);

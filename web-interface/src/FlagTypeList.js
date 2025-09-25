@@ -9,6 +9,7 @@ from '@mui/material';
 import FlagTypeAddButton from './FlagTypeAddButton.js';
 import FlagTypeReplaceButton from './FlagTypeReplaceButton.js'
 import Authenticator from './components/Authenticator.js';
+import { withBase } from './paths.js';
 
 /**
  * A MUI component that renders a list of flag types.
@@ -65,7 +66,7 @@ function FlagTypeList() {
             input += `&nameSubstring=${nameSubstring}`
 
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 setElements(data.result);
@@ -87,7 +88,7 @@ function FlagTypeList() {
      */
     useEffect(() => {
 
-        fetch(`/api/flag_type_count?nameSubstring=${nameSubstring}`).then(
+        fetch(withBase(`/api/flag_type_count?nameSubstring=${nameSubstring}`)).then(
             res => res.json()
         ).then(data => {
             setCount(data.result);

@@ -147,6 +147,20 @@ pip install -Iv python-dotenv==0.19.0
 ```
 This will install `Flask` version 2.0.1 and `python-dotenv` version 0.19.0 (see the TODOs, updating these will make Flask not work), which will read the `.flaskenv` file in the flask-interface folder to configure the Flask server.
 
+## Environment configuration
+
+Copy `.env.template` to `.env` and set values as needed:
+
+- `PROXY_SERVER_URL` — OAuth proxy base URL (e.g., `http://oauth-proxy-server:4000/` when using Docker Compose).
+- `SECRET_KEY` — Flask secret key for sessions.
+- `GITHUB_OAUTH_CLIENT_ID` — GitHub OAuth App Client ID (frontend + proxy).
+- `GITHUB_OAUTH_CLIENT_SECRET` — GitHub OAuth App Client Secret (proxy only).
+
+Notes:
+- `.env` is ignored by git; do not commit secrets.
+- When running via Docker Compose, the `.env` file at the repository root is injected into the `flask-interface` and `oauth-proxy-server` services automatically, and is also used for build-time args for the web interface.
+- When running locally, the backend loads `.env` via `python-dotenv`.
+
 ## Setting up React
 
 In `web-interface`, run `npm install` to install all dependencies. However, `react-scripts` must be set to version `4.0.3` (see the TODOs). 

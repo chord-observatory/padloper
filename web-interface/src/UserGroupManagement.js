@@ -3,6 +3,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Modal from '@mui/material/Modal';
+import { withBase } from './paths.js';
 
 function UserGroupManagementPage() {
     const [userGroups, setUserGroups] = useState([]);
@@ -20,7 +21,7 @@ function UserGroupManagementPage() {
     const fetchUserGroups = () => {
         // Make API call to fetch user groups
         let input = '/api/get_user_group_list'
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             console.log(data.result)
@@ -32,7 +33,7 @@ function UserGroupManagementPage() {
         // Make API call to fetch permissions for the selected user group
         // Fetch all permissions from API
         let input = '/api/get_all_permissions'
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setPermissions(data.result.filter(item => !group.permissions.includes(item)));
@@ -61,7 +62,7 @@ function UserGroupManagementPage() {
 
         // Fetch all permissions from API
         let input = '/api/get_all_permissions'
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setPermissions(data.result);
@@ -84,7 +85,7 @@ function UserGroupManagementPage() {
             method: 'POST', 
             body: formData
         };
-        fetch(input, requestOptions)
+        fetch(withBase(input), requestOptions)
           .then(res => res.json())
           .then(data => {
             console.log("res", data);

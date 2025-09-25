@@ -40,6 +40,7 @@ import {
 } from "react-router-dom";
 import { Typography } from '@mui/material';
 import Authenticator from './components/Authenticator.js';
+import { withBase, authHeaders } from './paths.js';
 
 /**
  * A styled Paper component that represents the root for the component page.
@@ -399,17 +400,17 @@ function ComponentPage() {
      * Get the user data via GitHub
      */
     async function getUserData() {
-        await fetch(`${process.env.OAUTH_URL || "http://localhost"}:4000/getUserData`, {
+        await fetch(withBase(`/oauth/getUserData`), {
             method: "GET",
             headers: {
-                "Authorization": "Bearer " + localStorage.getItem('accessToken')
+                ...authHeaders()
             }
-            }).then((response) => {
-                return response.json();
-            }).then((data) => {
-                setUserData(data);
-            });
-        }
+        }).then((response) => {
+            return response.json();
+        }).then((data) => {
+            setUserData(data);
+        });
+    }
 
 
 
@@ -437,7 +438,7 @@ function ComponentPage() {
         }
         input = input.substring(0, input.length - 1);
 
-        axios.post(input).then(
+        axios.post(withBase(input)).then(
             (response) => {
                 if (response.data.result){
                     setOpenPropertiesAddPanel(false);
@@ -466,7 +467,7 @@ function ComponentPage() {
         input += `&uid=${uid}`;
         input += `&comments=${comments}`;
 
-        fetch(input).then(
+        fetch(withBase(input)).then(
             (res) => res.json()
         ).then((data) => {
             if (data.result) {
@@ -505,7 +506,7 @@ function ComponentPage() {
         }
         input = input.substring(0, input.length - 1);
 
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             if (data.result) {
@@ -537,7 +538,7 @@ function ComponentPage() {
         input += `&uid=${uid}`;
         input += `&comments=${comments}`;
 
-        axios.post(input).then(
+        axios.post(withBase(input)).then(
                 (response) => {
                     if(response.data.result) {
                     setOpenConnectionsAddPanel(false);
@@ -566,7 +567,7 @@ function ComponentPage() {
         input += `&comments=${comments}`;
 
         return new Promise((resolve, reject) => {
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 if (data.result) {
@@ -612,7 +613,7 @@ function ComponentPage() {
         console.log("endTime", endTime);
 
         return new Promise((resolve, reject) => {
-            fetch(input, {method: 'POST'}).then(
+            fetch(withBase(input), {method: 'POST'}).then(
                 res => res.json()
             ).then(data => {
                 if (data.result) {
@@ -638,7 +639,7 @@ function ComponentPage() {
         input += `?name1=${name}`;
         input += `&name2=${otherName}`;
 
-        axios.post(input).then(
+        axios.post(withBase(input)).then(
                 (response) => {
                 if (response.data.result) {
                     setOpenSubcomponentsAddPanel(false);
@@ -658,7 +659,7 @@ function ComponentPage() {
      * and sort all the properties and connections by their start time.
      */
     useEffect(() => {
-        fetch(`/api/components_name/${name}`).then(
+        fetch(withBase(`/api/components_name/${name}`)).then(
             res => res.json()
         ).then(data => {
             data.result.properties.sort(

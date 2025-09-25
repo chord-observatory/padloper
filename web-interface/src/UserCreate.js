@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import TextField from '@mui/material/TextField';
+import { withBase } from './paths.js';
 import Button from '@mui/material/Button';
 
 // TODO:
@@ -32,7 +33,7 @@ function UserCreatePage() {
             method: 'POST', 
             body: formData
         };
-        fetch(input, requestOptions)
+        fetch(withBase(input), requestOptions)
           .then(res => res.json())
           .then(data => {
             setUserName('');

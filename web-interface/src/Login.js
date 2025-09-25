@@ -6,8 +6,9 @@ import { useNavigate } from 'react-router-dom';
 import GithubIcon from "mdi-react/GithubIcon";
 import { OAuthContext } from './contexts/OAuthContext';
 import './login.css'
+import { withBase } from './paths.js';
 
-const CLIENT_ID = "c2f7c573f77adca3ec14";
+const CLIENT_ID = process.env.REACT_APP_GITHUB_CLIENT_ID || "";
 
 export default function Login() {
     const [rerender, setRerender] = useState(false);
@@ -29,22 +30,20 @@ export default function Login() {
         // TODO: remove local storage
         if (codeParam && (localStorage.getItem("accessToken") === null)) {
             async function getAccessToken() {
-                fetch(`${process.env.OAUTH_URL ||
-                      "http://localhost"}:4000/getAccessToken?code=` + 
-                      codeParam, {method: "GET"}
+                const basePath = (process.env.REACT_APP_BASE_PATH || "/padloper").replace(/\/$/, "");
+                const redirectUri = encodeURIComponent(window.location.origin + basePath + "/");
+                fetch(withBase(`/oauth/getAccessToken?code=${codeParam}&redirect_uri=${redirectUri}`), {method: "GET"}
                 ).then((response) => {
                     return response.json();
                 }).then((oauthdata) => {
                     if (oauthdata.access_token) {
-                        fetch(`${process.env.OAUTH_URL ||
-                              "http://localhost"}:4000/getUserData`, {
+                        fetch(withBase(`/oauth/getUserData`), {
                             method: "GET",
-                            headers: {"Authorization": "Bearer " + 
-                                      oauthdata.access_token}
+                            headers: {"Authorization": "Bearer " + oauthdata.access_token}
                         }).then((response) => {
                             return response.json();
                         }).then((userdata) => {
-                            axios.post("/api/login", {
+                            axios.post(withBase("/api/login"), {
                                 username: userdata.login,
                                 accessToken: oauthdata.access_token
                             }).then(res => {
@@ -72,8 +71,14 @@ export default function Login() {
     }, []);
   
     function loginWithGithub() {
-      window.location.assign("https://github.com/login/oauth/" +
-                             "authorize?client_id=" + CLIENT_ID);
+      if (!CLIENT_ID) {
+        console.error("REACT_APP_GITHUB_CLIENT_ID is not configured");
+        alert("GitHub sign-in is not configured. Please set REACT_APP_GITHUB_CLIENT_ID.");
+        return;
+      }
+      const basePath = (process.env.REACT_APP_BASE_PATH || "/padloper").replace(/\/$/, "");
+      const redirectUri = encodeURIComponent(window.location.origin + basePath + "/");
+      window.location.assign("https://github.com/login/oauth/authorize?client_id=" + CLIENT_ID + "&redirect_uri=" + redirectUri);
     }
   
     return (

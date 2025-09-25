@@ -19,6 +19,7 @@ import ComponentEvent from './ComponentEvent.js';
 import FlagEvent from './FlagEvent.js';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Authenticator from './components/Authenticator.js';
+import { withBase } from './paths.js';
 
 /**
  * A styling for an MUI Accordion component.
@@ -248,7 +249,7 @@ export default function FlagList() {
         input += `?name=${name}`;
 
         return new Promise((resolve, reject) => {
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 if (data.result) {
@@ -278,7 +279,7 @@ export default function FlagList() {
             }
 
             // query the URL with flask, and set the input.
-            fetch(input).then(
+            fetch(withBase(input)).then(
                 res => res.json()
             ).then(data => {
                 setElements(data.result);
@@ -303,7 +304,7 @@ export default function FlagList() {
         if (filters.length > 0) {
             input += `?filters=${createFilterString()}`;
         }
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setCount(data.result);
@@ -328,7 +329,7 @@ export default function FlagList() {
         input += `&orderBy=name`
         input += `&orderDirection=asc`
         input += `&nameSubstring=`
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setFlagTypes(data.result);
@@ -348,7 +349,7 @@ export default function FlagList() {
         input += `?range=0;-1`
         input += `&orderBy=name`
         input += `&orderDirection=asc`
-        fetch(input).then(
+        fetch(withBase(input)).then(
             res => res.json()
         ).then(data => {
             setFlagSeverities(data.result);

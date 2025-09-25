@@ -16,6 +16,7 @@ import ComponentAutocomplete from './ComponentAutocomplete.js';
 
 import moment from "moment";
 import ErrorMessage from './ErrorMessage.js';
+import { withBase, authHeaders } from './paths.js';
 
 /**
  * A styled "panel" component, used as the background for the panel.
@@ -145,18 +146,16 @@ function ComponentConnectionAddPanel(
      * Get the user data via GitHub
      */
     async function getUserData() {
-        await fetch(`${process.env.OUATH_URL || "http://localhost"}:4000/getUserData`, {
+        await fetch(withBase(`/oauth/getUserData`), {
             method: "GET",
-            headers: {
-                "Authorization": "Bearer " + localStorage.getItem('accessToken')
-            }
-            }).then((response) => {
-                return response.json();
-            }).then((data) => {
-                console.log(data);
-                setUserData(data);
-            });
-        }
+            headers: { ...authHeaders() }
+        }).then((response) => {
+            return response.json();
+        }).then((data) => {
+            console.log(data);
+            setUserData(data);
+        });
+    }
 
     // return the MUI component.
     return (

@@ -20,6 +20,7 @@ import { OAuthContext, useOAuthContext } from './contexts/OAuthContext.js';
 import UserManagementPage from './UserManagement.js';
 import UserGroupManagementPage from './UserGroupManagement.js';
 import UserCreatePage from './UserCreate.js';
+import { BASE_PATH } from './paths.js';
 
 /**
  * The main page where the header and site contents are rendered,
@@ -51,7 +52,7 @@ function App() {
     <OAuthContext.Provider value={useOAuthContext()}>
       <div className="App">
 
-      <Router>
+      <Router basename={BASE_PATH}>
         {/* {localStorage.getItem("accessToken") === null ?
         <></> :
         <Header />

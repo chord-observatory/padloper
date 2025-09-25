@@ -16,6 +16,7 @@ import axios from 'axios'
 import EditIcon from '@mui/icons-material/Edit';
 import styled from '@mui/material/styles/styled';
 import ErrorMessage from './ErrorMessage';
+import { withBase } from './paths.js';
 
 /**
  * A MUI component representing a button for replacing a component version.
@@ -87,7 +88,7 @@ export default function ComponentVersionReplaceButton ({name,allowed_type,compon
       input += `&comments=${comment}`;
       input += `&component_version=${name}`;
       input += `&component_version_allowed_type=${allowed_type}`;
-      axios.post(input).then((response)=>{
+      axios.post(withBase(input)).then((response)=>{
         if(response.data.result){
           toggleReload() //To reload the page once the form has been submitted.
           handleClose()

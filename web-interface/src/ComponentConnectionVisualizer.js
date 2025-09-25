@@ -32,6 +32,7 @@ import { ThemeProvider } from '@emotion/react';
 
 import { unixTimeToISOString } from './utility/utility.js';
 import Authenticator from './components/Authenticator.js';
+import { withBase } from './paths.js';
 
 window.addEventListener("error", (e) => {
     if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || e.message === 'ResizeObserver loop limit exceeded') {
@@ -290,7 +291,7 @@ function ComponentConnectionsPanel() {
 
         if (initialCmp) {
             try {
-                const response = await fetch(`/api/components_name/${initialCmp}`)
+                const response = await fetch(withBase(`/api/components_name/${initialCmp}`))
                 const data = await response.json();
                 setUrlSet(true);
                 setComponent(data.result);
@@ -812,7 +813,7 @@ function ComponentConnectionsPanel() {
 
         return new Promise(
             resolve => {
-                fetch(input).then(
+                fetch(withBase(input)).then(
                     res => res.json()
                 ).then(data => {
                     console.log("Expanding Connections", name)
