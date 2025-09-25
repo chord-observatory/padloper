@@ -137,14 +137,29 @@ def login():
 
             if data.get('login') == username:
                 # Ensure a User vertex exists for this GitHub login. If not,
-                # create it and stamp with the user themselves.
+                # create it with no groups, ensure a Default group (no perms),
+                # and add the user to that group. Stamp the write with the user.
                 try:
-                    p.User.from_db(username)
+                    user_obj = p.User.from_db(username)
                 except Exception:
                     try:
                         # Minimal stub for uid stamping during creation
                         p_global._user = type("_LoginStub", (), {"name": username})()
-                        p.User(name=username).add(permissions=[])
+                        user_obj = p.User(name=username, groups=[])
+                        user_obj.add(permissions=[])
+
+                        # Ensure a Default group (no permissions) exists,
+                        # then add the new user to it.
+                        try:
+                            default_group = p.UserGroup.from_db('Default')
+                        except Exception:
+                            default_group = p.UserGroup(name='Default', permissions=[])
+                            default_group.add(permissions=[])
+                        try:
+                            user_obj.add_group(default_group)
+                        except Exception:
+                            # If already in group or any non-fatal issue, continue
+                            pass
                     finally:
                         # Clear stub; a proper user will be set below
                         p_global._user = None
@@ -2065,23 +2080,27 @@ def set_user():
 def new_user():
     val_username = request.form.get('username')
     _val_institution = request.form.get('institution')
-    user = p.User(name=val_username)
+    # Create user with no groups, then ensure Default group and assign.
+    user = p.User(name=val_username, groups=[])
     user.add(permissions=session.get('perms', []))
-    # print(user)
+    try:
+        default_group = p.UserGroup.from_db('Default')
+    except Exception:
+        default_group = p.UserGroup(name='Default', permissions=[])
+        default_group.add(permissions=session.get('perms', []))
+    try:
+        user.add_group(default_group)
+    except Exception:
+        pass
     return {'result': True}
 
 @app.route("/api/new_usergroup", methods=['POST'])
 def new_user_group():
     val_name = request.form.get('name')
-    # val_values = escape(request.args.get('values'))
-    # values = val_values.split(';')
     val_permissions = escape(request.form.get('permissions'))
-    permissions = val_permissions.split(';')
-    # print(val_permissions)
-    group = p.UserGroup(val_name, permissions)
+    permissions = val_permissions.split(';') if val_permissions is not None else []
+    group = p.UserGroup(name=val_name, permissions=permissions)
     group.add(permissions=session.get('perms', []))
-    # print(a.name)
-    # print(a.permissions)
     return {'result': True}
 
 @app.route("/api/new_set_usergroup", methods=['POST'])

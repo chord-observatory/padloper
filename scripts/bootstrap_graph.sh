@@ -114,7 +114,7 @@ cmd_map_admin() {
   require_backend
   # Ensure Gremlin server is up before Python tries to connect
   wait_for_gremlin
-  docker exec -i "$FLASK_CONTAINER" sh -lc "export PYTHONPATH=\$PYTHONPATH:/; python3 -m padloper.scripts.init_user-groups --skip-default-groups --ensure-admin '$login' --actor master"
+  docker exec -i "$FLASK_CONTAINER" sh -lc "export PYTHONPATH=\$PYTHONPATH:/; python3 -m padloper.scripts.init_user-groups --ensure-admin '$login' --actor master"
   echo "[bootstrap] Admin mapping complete for '$login'."
 }
 

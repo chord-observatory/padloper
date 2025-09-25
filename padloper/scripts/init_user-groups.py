@@ -89,7 +89,8 @@ def main():
             drop_group(nm)
 
     if not args.skip_default_groups:
-        ensure_group('Default', ['*'])
+        # Create a Default group with no permissions
+        ensure_group('Default', [])
         ensure_group('Protected', PROTECTED_PERMISSIONS)
         ensure_group('General', GENERAL_PERMISSIONS)
 
