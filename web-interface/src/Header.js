@@ -36,8 +36,7 @@ function Header() {
 
     // login to backend
     useEffect(() => {
-        // userData ? userData.login : ''
-        if (userData.login && false) {
+        if (userData.login) {
             axios.post(withBase("/api/login"), {
                 username: userData.login,
                 accessToken: localStorage.getItem("accessToken")
@@ -46,9 +45,8 @@ function Header() {
                 console.log(res.data)
             })
             .catch(err => {
-//                console.error('Error:', err);
-                console.log(err.response.data.error);
-//                localStorage.removeItem("accessToken");
+                const msg = (err && err.response && err.response.data && err.response.data.error) ? err.response.data.error : 'Login failed';
+                console.log(msg);
             })
         }
     }, [userData])

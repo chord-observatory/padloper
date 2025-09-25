@@ -174,13 +174,13 @@ def set_user(uid):
 #    g._user["id"] = uid
 
 def _get_user():
-    try:
-        return g._user
-    except TypeError:
+    # Ensure a user identity is present for write operations
+    u = g._user
+    if u is None:
         raise RuntimeError(
-            "You must call padloper.set_user() before performing this "\
-            "operation."
+            "You must call padloper.set_user() before performing this operation."
         )
+    return u
 
 def _parse_time(t):
     try:
@@ -1405,87 +1405,62 @@ class User(Vertex):
     ]
     primary_attr: str = "name"
 
-#    def add_group(self, group, strict_add: bool=False):
-#        """
-#        Given a UserGroup :param group, connect this User to this group.
-#
-#        :param group: A UserGroup to connect this User to
-#        :type group: UserGroup
-#        """
-#        from _edges import RelationUserGroup
-#
-#        if not self.in_db():
-#            raise UserNotAddedError(
-#                f"User {self.name} has not yet been added to the database."
-#            )
-#
-#        if not group.in_db():
-#            raise UserGroupNotAddedError(
-#                f"UserGroup {group.name} has not yet been added to the "\
-#                 "database."
-#            )
-#
-#        if group not in self.get_groups():
-#            e = RelationUserGroup(inVertex=self, outVertex=group)
-#            e.add()
-#        else:
-#            strictraise(strict_add, AlreadyInDatabase,
-#                        "User %s is already in group %s." %\
-#                        (self.name, group.name))
-#
-#    def remove_group(self, group, strict_remove: bool=False):
-#        """
-#        Given a UserGroup :param group, connect this User to this group.
-#
-#        :param group: A UserGroup to connect this User to
-#        :type group: UserGroup
-#        """
-#        from _edges import RelationUserGroup
-#
-#        if not self.in_db():
-#            raise UserNotAddedError(
-#                f"User {self.name} has not yet been added to the database."
-#            )
-#
-#        if not group.in_db():
-#            raise UserGroupNotAddedError(
-#                f"UserGroup {group.name} has not yet been added to the "\
-#                 "database."
-#            )
-#
-#        if group in self.get_groups():
-#            e = g.t.V(self.id()).bothE(RelationUserGroup.category)\
-#                 .has("active", True)\
-#                 .as_("e").otherV().has("name", group.name)\
-#                 .select("e").property("active", False).next()
-##            e = RelationUserGroup(inVertex=self, outVertex=group)
-##            e.add()
-#        else:
-#            strictraise(strict_add, AlreadyInDatabase,
-#                        "User %s is not in group %s." %\
-#                        (self.name, group.name))
-#
-#    def get_groups(self, allow_disabled=False):
-#        from _edges import RelationUserGroup
-#
-#        if not self.in_db():
-#            raise UserNotAddedError(
-#                f"User {self.name} has not yet been added to the database."
-#            )
-#
-#        query = g.t.V(self.id()).bothE(RelationUserGroup.category)
-#        if not allow_disabled:
-#            query = query.has("active", True)
-#        query = query.as_('e').valueMap().as_('edge_props')\
-#                     .select('e').otherV().id_().as_('vertex_id')\
-#                     .select('edge_props', 'vertex_id').toList()
-#
-#        # Build up the result 
-#        result = []
-#        for q in query:
-#            result.append(UserGroup.from_id(q['vertex_id']))
-#
-#        return result
+    def add_group(self, group, strict_add: bool=False):
+        """Connect this User to a UserGroup with a rel_user_group edge.
+
+        :param group: A UserGroup to connect this User to
+        :type group: UserGroup
+        """
+        from _edges import RelationUserGroup
+        from _exceptions import UserNotAddedError, UserGroupNotAddedError, AlreadyInDatabase
+
+        if not self.in_db():
+            raise UserNotAddedError(
+                f"User {self.name} has not yet been added to the database."
+            )
+
+        if not group.in_db():
+            raise UserGroupNotAddedError(
+                f"UserGroup {group.name} has not yet been added to the database."
+            )
+
+        # Use the loaded attribute to check existing memberships
+        if any(gr.name == group.name for gr in getattr(self, 'groups', []) or []):
+            strictraise(strict_add, AlreadyInDatabase,
+                        "User %s is already in group %s." %
+                        (self.name, group.name))
+            return
+
+        # Direction: group -> user (outVertex=group)
+        e = RelationUserGroup(inVertex=self, outVertex=group)
+        e.add()
+
+        # Keep local attribute view in sync for this instance
+        try:
+            if isinstance(self.groups, list):
+                self.groups.append(group)
+        except Exception:
+            pass
+
+    def get_groups(self, allow_disabled: bool=False):
+        """Return a list of UserGroup vertices this user belongs to.
+
+        Uses the preloaded groups attribute; falls back to querying if needed.
+        """
+        if hasattr(self, 'groups') and isinstance(self.groups, list):
+            return self.groups
+
+        # Fallback to a query if groups are not present (edge case)
+        from _edges import RelationUserGroup
+        if not self.in_db():
+            raise UserNotAddedError(
+                f"User {self.name} has not yet been added to the database."
+            )
+        query = g.t.V(self.id()).both(RelationUserGroup.category)
+        if not allow_disabled:
+            query = query.has('active', True)
+        ids = [vid for vid in query.id_().toList()]
+        return [UserGroup.from_id(vid) for vid in ids]
 
     def get_permissions(self) -> set:
         # Store perms
