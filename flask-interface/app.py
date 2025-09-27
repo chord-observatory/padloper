@@ -137,7 +137,7 @@ def login():
 
             if data.get('login') == username:
                 # Ensure a User vertex exists for this GitHub login. If not,
-                # create it with no groups, ensure a Default group (no perms),
+                # create it with no groups, ensure a 'readonly' group (no perms),
                 # and add the user to that group. Stamp the write with the user.
                 try:
                     user_obj = p.User.from_db(username)
@@ -148,12 +148,12 @@ def login():
                         user_obj = p.User(name=username, groups=[])
                         user_obj.add(permissions=[])
 
-                        # Ensure a Default group (no permissions) exists,
+                        # Ensure a 'readonly' group (no permissions) exists,
                         # then add the new user to it.
                         try:
-                            default_group = p.UserGroup.from_db('Default')
+                            default_group = p.UserGroup.from_db('readonly')
                         except Exception:
-                            default_group = p.UserGroup(name='Default', permissions=[])
+                            default_group = p.UserGroup(name='readonly', permissions=[])
                             default_group.add(permissions=[])
                         try:
                             user_obj.add_group(default_group)
@@ -2198,13 +2198,13 @@ def set_user():
 def new_user():
     val_username = request.form.get('username')
     _val_institution = request.form.get('institution')
-    # Create user with no groups, then ensure Default group and assign.
+    # Create user with no groups, then ensure 'readonly' group and assign.
     user = p.User(name=val_username, groups=[])
     user.add(permissions=session.get('perms', []))
     try:
-        default_group = p.UserGroup.from_db('Default')
+        default_group = p.UserGroup.from_db('readonly')
     except Exception:
-        default_group = p.UserGroup(name='Default', permissions=[])
+        default_group = p.UserGroup(name='readonly', permissions=[])
         default_group.add(permissions=session.get('perms', []))
     try:
         user.add_group(default_group)

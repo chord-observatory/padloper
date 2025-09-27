@@ -71,8 +71,8 @@ def map_user_to_group(user_name, group_name):
 
 def main():
     ap = argparse.ArgumentParser(description='Create default user groups and/or map a user to admin group')
-    ap.add_argument('--reset-default-groups', action='store_true', help='Drop and recreate Default/Protected/General')
-    ap.add_argument('--skip-default-groups', action='store_true', help='Skip ensuring Default/Protected/General groups')
+    ap.add_argument('--reset-default-groups', action='store_true', help='Drop and recreate readonly/Protected/General')
+    ap.add_argument('--skip-default-groups', action='store_true', help='Skip ensuring readonly/Protected/General groups')
     ap.add_argument('--ensure-admin', metavar='GITHUB_LOGIN', help='Ensure admin group exists and map this user to it (user auto-created if missing)')
     ap.add_argument('--actor', default='master', help='DB user to attribute writes as (default: master)')
     args = ap.parse_args()
@@ -86,12 +86,12 @@ def main():
     p.set_user(args.actor)
 
     if args.reset_default_groups:
-        for nm in ('Protected', 'General', 'Default'):
+        for nm in ('Protected', 'General', 'readonly'):
             drop_group(nm)
 
     if not args.skip_default_groups:
-        # Create a Default group with no permissions
-        ensure_group('Default', [])
+        # Create a readonly group with no permissions
+        ensure_group('readonly', [])
         ensure_group('Protected', PROTECTED_PERMISSIONS)
         ensure_group('General', GENERAL_PERMISSIONS)
 
