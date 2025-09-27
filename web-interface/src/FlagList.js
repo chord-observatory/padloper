@@ -140,7 +140,8 @@ export default function FlagList() {
 
     // property to order the flag types by
     // must be in the set {'name, start.time, end.time'}
-    const [orderBy, setOrderBy] = useState('name');
+    // Flags don't have a name attribute; default to a supported field.
+    const [orderBy, setOrderBy] = useState('type');
 
     // how to order the elements
     // 'asc' or 'desc'
@@ -249,14 +250,24 @@ export default function FlagList() {
         input += `?name=${name}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input))
+              .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`disable_flag ${res.status}: ${text}`);
+                }
+                return res.json();
+              })
+              .then(data => {
                 if (data.result) {
                     toggleReload();
                 }
                 resolve(data.result);
-            });
+              })
+              .catch((err) => {
+                console.error('Failed to disable flag:', err);
+                resolve(false);
+              });
         });
 
     }
@@ -279,12 +290,23 @@ export default function FlagList() {
             }
 
             // query the URL with flask, and set the input.
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
-                setElements(data.result);
-                setLoaded(true);
-            });
+            fetch(withBase(input))
+                .then(async (res) => {
+                    if (!res.ok) {
+                        const text = await res.text();
+                        throw new Error(`flag_list ${res.status}: ${text}`);
+                    }
+                    return res.json();
+                })
+                .then((data) => {
+                    setElements(data.result);
+                    setLoaded(true);
+                })
+                .catch((err) => {
+                    console.error('Failed to load flags:', err);
+                    setElements([]);
+                    setLoaded(true);
+                });
         }
         fetchData();
     }, [
@@ -304,12 +326,22 @@ export default function FlagList() {
         if (filters.length > 0) {
             input += `?filters=${createFilterString()}`;
         }
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
-            setCount(data.result);
-            setMin(0);
-        });
+        fetch(withBase(input))
+            .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`flag_count ${res.status}: ${text}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setCount(data.result);
+                setMin(0);
+            })
+            .catch((err) => {
+                console.error('Failed to load flag count:', err);
+                setCount(0);
+            });
     }, [
         filters,
         reloadBool
@@ -329,11 +361,18 @@ export default function FlagList() {
         input += `&orderBy=name`
         input += `&orderDirection=asc`
         input += `&nameSubstring=`
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
-            setFlagTypes(data.result);
-        });
+        fetch(withBase(input))
+            .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`flag_type_list ${res.status}: ${text}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setFlagTypes(data.result);
+            })
+            .catch((err) => console.error('Failed to load flag types:', err));
     }, []);
 
     /**
@@ -349,12 +388,19 @@ export default function FlagList() {
         input += `?range=0;-1`
         input += `&orderBy=name`
         input += `&orderDirection=asc`
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
-            setFlagSeverities(data.result);
-            console.log(data.result)
-        });
+        fetch(withBase(input))
+            .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`flag_severity_list ${res.status}: ${text}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setFlagSeverities(data.result);
+                console.log(data.result)
+            })
+            .catch((err) => console.error('Failed to load flag severities:', err));
     }, []);
 
     /**
@@ -366,13 +412,18 @@ export default function FlagList() {
         input += `?range=0;-1`
         input += `&orderBy=name`
         input += `&orderDirection=asc`
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
-            setComponents((prevState) => {
-                return prevState.concat(data.result)
-            });
-        });
+        fetch(withBase(input))
+            .then(async (res) => {
+                if (!res.ok) {
+                    const text = await res.text();
+                    throw new Error(`component_list ${res.status}: ${text}`);
+                }
+                return res.json();
+            })
+            .then((data) => {
+                setComponents((prevState) => prevState.concat(data.result));
+            })
+            .catch((err) => console.error('Failed to load components:', err));
     }, []);
 
 

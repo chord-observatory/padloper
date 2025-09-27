@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
-import { withBase } from './paths.js';
+import { withBase, requireOkJson } from './paths.js';
 
 /**
  * An Autocomplete component that queries the component property list in the DB 
@@ -55,13 +55,18 @@ export default function ComponentPropertyAutocomplete(
             input += `&nameSubstring=${entered_string}`;
     
             // query the URL with flask, and set the input.
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input))
+              .then(requireOkJson)
+              .then(data => {
                 setOptions(data.result);
-    
+
                 setLoading(false);
-            });
+              })
+              .catch(err => {
+                console.error('Failed to load property types:', err);
+                setOptions([]);
+                setLoading(false);
+              });
         }
         if (open) {
             fetchData();

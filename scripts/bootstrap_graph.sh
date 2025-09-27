@@ -114,6 +114,11 @@ cmd_map_admin() {
   require_backend
   # Ensure Gremlin server is up before Python tries to connect
   wait_for_gremlin
+  # Sync latest padloper code into the running backend container to pick up fixes
+  # without requiring a full image rebuild.
+  if [ -d "$REPO_ROOT/padloper" ]; then
+    docker cp "$REPO_ROOT/padloper/." "$FLASK_CONTAINER:/padloper" >/dev/null
+  fi
   docker exec -i "$FLASK_CONTAINER" sh -lc "export PYTHONPATH=\$PYTHONPATH:/; python3 -m padloper.scripts.init_user-groups --ensure-admin '$login' --actor master"
   echo "[bootstrap] Admin mapping complete for '$login'."
 }

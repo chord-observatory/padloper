@@ -31,7 +31,8 @@ GENERAL_PERMISSIONS = [
     'Component;connect',
     'Component;set_property',
     'Flag;add',
-    'Flag;end_flag',
+    # Correct permission name per padloper.permissions_set
+    'Flag;set_end',
 ]
 
 

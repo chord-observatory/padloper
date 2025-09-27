@@ -16,7 +16,7 @@ import ComponentAutocomplete from './ComponentAutocomplete.js';
 
 import moment from "moment";
 import ErrorMessage from './ErrorMessage.js';
-import { withBase, authHeaders } from './paths.js';
+import { withBase, authHeaders, requireOkJson } from './paths.js';
 
 /**
  * A styled "panel" component, used as the background for the panel.
@@ -149,11 +149,15 @@ function ComponentConnectionAddPanel(
         await fetch(withBase(`/oauth/getUserData`), {
             method: "GET",
             headers: { ...authHeaders() }
-        }).then((response) => {
-            return response.json();
-        }).then((data) => {
+        })
+        .then(requireOkJson)
+        .then((data) => {
             console.log(data);
             setUserData(data);
+        })
+        .catch((err) => {
+            console.error('Failed to load user data:', err);
+            setUserData({});
         });
     }
 

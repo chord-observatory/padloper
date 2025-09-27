@@ -40,7 +40,7 @@ import {
 } from "react-router-dom";
 import { Typography } from '@mui/material';
 import Authenticator from './components/Authenticator.js';
-import { withBase, authHeaders } from './paths.js';
+import { withBase, authHeaders, requireOkJson } from './paths.js';
 
 /**
  * A styled Paper component that represents the root for the component page.
@@ -405,10 +405,14 @@ function ComponentPage() {
             headers: {
                 ...authHeaders()
             }
-        }).then((response) => {
-            return response.json();
-        }).then((data) => {
+        })
+        .then(requireOkJson)
+        .then((data) => {
             setUserData(data);
+        })
+        .catch((err) => {
+            console.error('Failed to load user data:', err);
+            setUserData({});
         });
     }
 
@@ -467,9 +471,9 @@ function ComponentPage() {
         input += `&uid=${uid}`;
         input += `&comments=${comments}`;
 
-        fetch(withBase(input)).then(
-            (res) => res.json()
-        ).then((data) => {
+        fetch(withBase(input))
+        .then(requireOkJson)
+        .then((data) => {
             if (data.result) {
                 setOpenPropertiesEndPanel(false);
                 seterrorEndPropertyMessage(null);
@@ -479,6 +483,10 @@ function ComponentPage() {
                 console.log(data.error);
                 seterrorEndPropertyMessage(JSON.parse(data.error));
             }
+        })
+        .catch((err) => {
+            console.error('Failed to end property:', err);
+            seterrorEndPropertyMessage(err.message);
         });
     }
 
@@ -506,9 +514,9 @@ function ComponentPage() {
         }
         input = input.substring(0, input.length - 1);
 
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(input))
+        .then(requireOkJson)
+        .then(data => {
             if (data.result) {
                 setOpenPropertiesReplacePanel(false);
                 toggleReload();
@@ -516,6 +524,10 @@ function ComponentPage() {
             else {
                 setErrorReplacePropertyMessage(JSON.parse(data.error));
             }
+        })
+        .catch((err) => {
+            console.error('Failed to replace property:', err);
+            setErrorReplacePropertyMessage(err.message);
         });
     }
 
@@ -567,9 +579,9 @@ function ComponentPage() {
         input += `&comments=${comments}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input))
+            .then(requireOkJson)
+            .then(data => {
                 if (data.result) {
                     setOpenConnectionsEndPanel(false);
                     toggleReload();
@@ -579,6 +591,11 @@ function ComponentPage() {
                     setErrorEndConnectionMessage(JSON.parse(data.error));
                 }
                 resolve(data.result);
+            })
+            .catch((err) => {
+                console.error('Failed to end connection:', err);
+                setErrorEndConnectionMessage(err.message);
+                resolve(false);
             });
         });
 
@@ -613,9 +630,9 @@ function ComponentPage() {
         console.log("endTime", endTime);
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input), {method: 'POST'}).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input), {method: 'POST'})
+            .then(requireOkJson)
+            .then(data => {
                 if (data.result) {
                     setOpenConnectionsReplacePanel(false);
                     toggleReload();
@@ -624,6 +641,11 @@ function ComponentPage() {
                     setErrorReplaceConnectionMessage(JSON.parse(data.error));
                 }
                 resolve(data.result);
+            })
+            .catch((err) => {
+                console.error('Failed to replace connection:', err);
+                setErrorReplaceConnectionMessage(err.message);
+                resolve(false);
             });
         });
     }
@@ -659,9 +681,9 @@ function ComponentPage() {
      * and sort all the properties and connections by their start time.
      */
     useEffect(() => {
-        fetch(withBase(`/api/components_name/${name}`)).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(`/api/components_name/${name}`))
+        .then(requireOkJson)
+        .then(data => {
             data.result.properties.sort(
                 (a, b) => parseFloat(a.start_time) - parseFloat(b.start_time)
             );
@@ -669,6 +691,10 @@ function ComponentPage() {
                 (a, b) => parseFloat(a.start_time) - parseFloat(b.start_time)
             );
             setComponent(data.result);
+        })
+        .catch((err) => {
+            console.error('Failed to load component:', err);
+            setComponent(null);
         });
     }, [name, reloadBool]);
 

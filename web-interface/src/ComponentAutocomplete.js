@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import CircularProgress from '@mui/material/CircularProgress';
 import TextField from '@mui/material/TextField';
-import { withBase } from './paths.js';
+import { withBase, requireOkJson } from './paths.js';
 
 /**
  * An Autocomplete component that queries the component list in the DB and gives
@@ -46,9 +46,9 @@ export default function ComponentAutocomplete(
             input += `&filters=${entered_string},,`; // double comma needed
     
             // query the URL with flask, and set the input.
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input))
+              .then(requireOkJson)
+              .then(data => {
                 // get rid of the element with the same name 
                 // as "excludeName" parameter
                 let index = data.result.findIndex(
@@ -60,7 +60,12 @@ export default function ComponentAutocomplete(
                 setOptions(data.result);
 
                 setLoading(false);
-            });
+              })
+              .catch(err => {
+                console.error('Failed to load components for autocomplete:', err);
+                setOptions([]);
+                setLoading(false);
+              });
         }
         if (open) {
             fetchData();

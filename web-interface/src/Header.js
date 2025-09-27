@@ -9,7 +9,7 @@ import GithubIcon from "mdi-react/GithubIcon";
 import axios from 'axios'
 import { useState, useEffect, useContext } from 'react';
 import { OAuthContext } from './contexts/OAuthContext';
-import { withBase, authHeaders } from './paths.js';
+import { withBase, authHeaders, requireOkJson } from './paths.js';
 
 import HeaderMenuButton from './HeaderMenuButton.js';
 import { useNavigate } from 'react-router-dom';
@@ -60,15 +60,19 @@ function Header() {
 
     // TODO: export function to use elsewhere
     async function getUserData() {
-    await fetch(withBase(`/oauth/getUserData`), {
+      await fetch(withBase(`/oauth/getUserData`), {
         method: "GET",
         headers: { ...authHeaders() }
-        }).then((response) => {
-            return response.json();
-        }).then((data) => {
-            console.log(data);
-            setUserData(data);
-        });
+      })
+      .then(requireOkJson)
+      .then((data) => {
+        console.log(data);
+        setUserData(data);
+      })
+      .catch((err) => {
+        console.error('Failed to load user data:', err);
+        setUserData({});
+      });
     }
 
     // TODO: change to network context

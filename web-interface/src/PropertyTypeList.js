@@ -7,7 +7,7 @@ import Button from '@mui/material/Button'
 import PropertyTypeAddButton from './PropertyTypeAddButton.js';
 import PropertyTypeReplaceButton from './PropertyTypeReplaceButton.js';
 import Authenticator from './components/Authenticator.js';
-import { withBase } from './paths.js';
+import { withBase, requireOkJson } from './paths.js';
 
 
 
@@ -144,12 +144,17 @@ export default function PropertyTypeList() {
             }
 
             // query the URL with flask, and set the input.
-            fetch(withBase(input)).then(
-                res => res.json()
-            ).then(data => {
+            fetch(withBase(input))
+              .then(requireOkJson)
+              .then(data => {
                 setElements(data.result);
                 setLoaded(true);
-            });
+              })
+              .catch(err => {
+                console.error('Failed to load property types:', err);
+                setElements([]);
+                setLoaded(true);
+              });
         }
         fetchData();
     }, [
@@ -169,12 +174,16 @@ export default function PropertyTypeList() {
         if (filters.length > 0) {
             input += `?filters=${createFilterString()}`;
         }
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(input))
+          .then(requireOkJson)
+          .then(data => {
             setCount(data.result);
             setMin(0);
-        });
+          })
+          .catch(err => {
+            console.error('Failed to load property type count:', err);
+            setCount(0);
+          });
     }, [
         filters,
         reloadBool
@@ -194,11 +203,15 @@ export default function PropertyTypeList() {
         input += `&orderBy=name`
         input += `&orderDirection=asc`
         input += `&nameSubstring=`
-        fetch(withBase(input)).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(input))
+          .then(requireOkJson)
+          .then(data => {
             setComponentTypes(data.result);
-        });
+          })
+          .catch(err => {
+            console.error('Failed to load component types for filter:', err);
+            setComponentTypes([]);
+          });
     }, []);
 
     // the header cells of the table with their ids, labels, and whether you

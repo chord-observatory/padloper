@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import GithubIcon from "mdi-react/GithubIcon";
 import { OAuthContext } from './contexts/OAuthContext';
 import './login.css'
-import { withBase } from './paths.js';
+import { withBase, requireOkJson } from './paths.js';
 
 const CLIENT_ID = process.env.REACT_APP_GITHUB_CLIENT_ID || "";
 
@@ -33,16 +33,12 @@ export default function Login() {
                 const basePath = (process.env.REACT_APP_BASE_PATH || "/padloper").replace(/\/$/, "");
                 const redirectUri = encodeURIComponent(window.location.origin + basePath + "/");
                 fetch(withBase(`/oauth/getAccessToken?code=${codeParam}&redirect_uri=${redirectUri}`), {method: "GET"}
-                ).then((response) => {
-                    return response.json();
-                }).then((oauthdata) => {
+                ).then(requireOkJson).then((oauthdata) => {
                     if (oauthdata.access_token) {
                         fetch(withBase(`/oauth/getUserData`), {
                             method: "GET",
                             headers: {"Authorization": "Bearer " + oauthdata.access_token}
-                        }).then((response) => {
-                            return response.json();
-                        }).then((userdata) => {
+                        }).then(requireOkJson).then((userdata) => {
                             axios.post(withBase("/api/login"), {
                                 username: userdata.login,
                                 accessToken: oauthdata.access_token
@@ -58,8 +54,14 @@ export default function Login() {
                                 setErrorData("Could not sign in. Error was: " +
                                              err.response.data.error);
                             })
+                        }).catch(err => {
+                            console.error('Failed to get user data:', err);
+                            setErrorData('Failed to get user data.');
                         }); 
                     } 
+                }).catch(err => {
+                    console.error('Failed to obtain access token:', err);
+                    setErrorData('Failed to obtain access token.');
                 })
             }
 

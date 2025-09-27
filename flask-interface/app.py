@@ -205,20 +205,21 @@ def logout():
 
 @app.route("/api/components_name/<name>")
 def get_component_by_name(name):
-    """Given a name of a component, return a dictionary containing the
-    dictionary representation of the component in its 'result' field.
+    """Given a name of a component, return its dictionary representation.
 
-    :param name: The component name
-    :type name: str
-    :return: Return a dictionary with a key/value pair of 'result' and the
-    dictionary representation of the component with said name
-    :rtype: dict
+    Returns {'result': {...}} on success or {'error': '...'} on failure
+    instead of a 500, so clients can handle gracefully (e.g., when the
+    component is not found).
     """
-    return {
-        'result': p.Component.from_db(str(escape(name)),
-                                      permissions=session.get('perms', []))\
-                   .as_dict(permissions=session.get('perms', []))
-    }
+    try:
+        comp = p.Component.from_db(str(escape(name)),
+                                   permissions=session.get('perms', []))
+        return {
+            'result': comp.as_dict(permissions=session.get('perms', []))
+        }
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/component_list")
@@ -1480,8 +1481,8 @@ def set_flag_type():
         val_name = escape(request.args.get('name'))
         val_comments = escape(request.args.get('comments'))
 
-        # Need to initialize an instance of a component version first.
-        flag_type = p.FlagType(val_name, val_comments)
+        # Create a FlagType with proper keyword args
+        flag_type = p.FlagType(name=val_name, comments=val_comments)
         flag_type.add(permissions=session.get('perms', []))
 
         return {'result': True}
@@ -1539,8 +1540,8 @@ def set_flag_severity():
     try:
         val_name = escape(request.args.get('name'))
 
-        # Need to initialize an instance of a component version first.
-        flag_severity = p.FlagSeverity(val_name)
+        # Create a FlagSeverity with proper keyword args
+        flag_severity = p.FlagSeverity(name=val_name)
         flag_severity.add(permissions=session.get('perms', []))
 
         return {'result': True}
@@ -1672,7 +1673,8 @@ def unset_flag():
         # Need to initialize an instance of Flag first.
         flag = p.Flag.from_db(val_name)
         t = tmp_timestamp(val_end_time, val_uid, val_comments)
-        flag.end_flag(end, permissions=session.get('perms', []))
+        # Use the modern API method; end_flag() is deprecated
+        flag.set_end(t, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1791,14 +1793,30 @@ def get_flag_count():
     the number of flag that satisfy the filters. 
     :rtype: dict
     """
+    try:
+        filters_str = request.args.get('filters')
 
-    filters = request.args.get('filters')
+        # Flags filter format from UI: "name,type,severity;..."
+        # Only type and severity apply to Flag attributes; ignore the leading name.
+        filt = []
+        if filters_str:
+            for triple in filters_str.split(';'):
+                if triple == "":
+                    continue
+                parts = triple.split(',')
+                # parts[0] is a free-text name filter not used by backend
+                if len(parts) >= 2 and parts[1]:
+                    d = {"type": parts[1]}
+                    if len(parts) >= 3 and parts[2]:
+                        d["severity"] = parts[2]
+                    filt.append(d)
 
-    filter_triples = read_filters(filters)
-
-    return {
-        'result': p.Flag.get_count(filters=filter_triples)
-    }
+        return {
+            'result': p.Flag.get_count(filters=filt)
+        }
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/flag_list")
@@ -1830,31 +1848,46 @@ def get_flag_list():
     :rtype: dict
 
     """
-    raise RuntimeError("Flags have not been properly implemented in the "\
-                       "web interface.")
-    return
-    list_range = escape(request.args.get('range'))
-    order_by = escape(request.args.get('orderBy'))
-    order_direction = escape(request.args.get('orderDirection'))
+    try:
+        list_range = escape(request.args.get('range')) or "0;-1"
+        order_by = escape(request.args.get('orderBy')) or "type"
+        order_direction = escape(request.args.get('orderDirection')) or "asc"
 
-    filters = request.args.get('filters')
-    filt = parse_filters(filters, ["type", "severity"],
-                         [lambda x: x, lambda x: x])
+        filters_str = request.args.get('filters')
 
-    range_bounds = tuple(map(int, list_range.split(';')))
+        # Parse filters from UI: "name,type,severity;..." — ignore the leading name.
+        filt = []
+        if filters_str:
+            for triple in filters_str.split(';'):
+                if triple == "":
+                    continue
+                parts = triple.split(',')
+                if len(parts) >= 2 and parts[1]:
+                    d = {"type": parts[1]}
+                    if len(parts) >= 3 and parts[2]:
+                        d["severity"] = parts[2]
+                    filt.append(d)
 
-    # A bunch of assertions to make sure everything is as intended.
-    assert len(range_bounds) == 2
-    assert order_direction in {'asc', 'desc'}
+        # Normalize and validate ordering
+        valid_order_fields = {"type", "severity", "notes"}
+        if order_by not in valid_order_fields:
+            order_by = "type"
+        if order_direction not in {"asc", "desc"}:
+            order_direction = "asc"
 
-    # query to padloper
-    flags = p.Flag.get_list(
-        range=range_bounds,
-        order_by=[(order_by, order_direction)],
-        filters=filt
-    )
+        range_bounds = tuple(map(int, list_range.split(';')))
+        assert len(range_bounds) == 2
 
-    return {"result": [f.as_dict() for f in flags]}
+        flags = p.Flag.get_list(
+            range=range_bounds,
+            order_by=[(order_by, order_direction)],
+            filters=filt
+        )
+
+        return {"result": [f.as_dict() for f in flags]}
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/flag_type_list")

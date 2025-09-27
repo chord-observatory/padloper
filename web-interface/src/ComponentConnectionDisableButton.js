@@ -10,7 +10,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import DialogContentText from '@mui/material/DialogContentText';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorMessage from './ErrorMessage';
-import { withBase } from './paths.js';
+import { withBase, requireOkJson } from './paths.js';
 
 
 /*
@@ -75,8 +75,8 @@ const DisableButton = styled((props) => (
         input += `&start_time=${time}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input)).then(
-              (res) => res.json())
+            fetch(withBase(input))
+              .then(requireOkJson)
               .then((data) => {
                 console.log(data);
                 if (data.result) {
@@ -88,6 +88,12 @@ const DisableButton = styled((props) => (
                   setLoading(false);
                 }
                 resolve(data.result);
+              })
+              .catch((err) => {
+                console.error('Failed to disable connection:', err);
+                setErrorData(err.message);
+                setLoading(false);
+                resolve(false);
               });
             });
           }
