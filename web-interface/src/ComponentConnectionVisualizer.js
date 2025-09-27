@@ -291,7 +291,7 @@ function ComponentConnectionsPanel() {
 
         if (initialCmp) {
             try {
-                const response = await fetch(withBase(`/api/components_name/${initialCmp}`))
+                const response = await fetch(withBase(`/api/components_name/${encodeURIComponent(initialCmp)}`))
                 const data = await requireOkJson(response);
                 setUrlSet(true);
                 setComponent(data.result);

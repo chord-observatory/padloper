@@ -203,7 +203,7 @@ def logout():
     return ({'message': 'Logged out successfully'}), 200
 
 
-@app.route("/api/components_name/<name>")
+@app.route("/api/components_name/<path:name>")
 def get_component_by_name(name):
     """Given a name of a component, return its dictionary representation.
 
@@ -212,14 +212,20 @@ def get_component_by_name(name):
     component is not found).
     """
     try:
-        comp = p.Component.from_db(str(escape(name)),
-                                   permissions=session.get('perms', []))
+        comp = p.Component.from_db(str(escape(name)))
         return {
             'result': comp.as_dict(permissions=session.get('perms', []))
         }
     except Exception as e:
         print(e)
-        return {'error': json.dumps(e, default=str)}
+        # Distinguish not-found from other errors when possible
+        try:
+            from padloper._exceptions import NotInDatabase
+            if isinstance(e, NotInDatabase):
+                return {'error': json.dumps(e, default=str)}, 404
+        except Exception:
+            pass
+        return {'error': json.dumps(e, default=str)}, 400
 
 
 @app.route("/api/component_list")
@@ -752,12 +758,19 @@ def get_component_types_and_versions():
     being a list of all the component types and their corresponding versions.
     :rtype: dict
     """
-
-    types = p.ComponentType.get_names_of_types_and_versions(permissions=session.get('perms', []))
-    ret = {}
-    for t in types:
-        ret[t["name"]] = t["versions"]
-    return {'result': ret}
+    try:
+        types = p.ComponentType.get_names_of_types_and_versions(permissions=session.get('perms', []))
+        ret = {}
+        for t in types:
+            # Defensive: ensure expected keys exist and are JSON-serializable
+            name = t.get("name") or t.get("type")
+            versions = t.get("versions", [])
+            if name is not None:
+                ret[str(name)] = list(versions)
+        return {'result': ret}
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/component_type_list")
@@ -1620,7 +1633,7 @@ def set_flag():
             request.args.get('components')).split(';')
 
         severity = p.FlagSeverity.from_db(val_severity)
-        type = p.FlagType.from_db(val_type)
+        flag_type = p.FlagType.from_db(val_type)
 
         allowed_list = []
         # Query the database and return a list of Component instances based on
@@ -1635,8 +1648,12 @@ def set_flag():
             end = tmp_timestamp(val_end_time, val_uid, val_start_comments)
         else:
             end = None
-        flag = p.Flag(val_name, start, severity, type, 
-                      comments=val_comments, end=end,
+        # Store the display name in 'notes' since Flag has no 'name' attr
+        flag = p.Flag(type=flag_type,
+                      severity=severity,
+                      notes=val_name,
+                      start=start,
+                      end=end,
                       components=allowed_list)
         flag.add(permissions=session.get('perms', []))
 
@@ -1670,8 +1687,13 @@ def unset_flag():
         val_end_time = escape(request.args.get('end_time'))
         val_comments = escape(request.args.get('comments'))
 
-        # Need to initialize an instance of Flag first.
-        flag = p.Flag.from_db(val_name)
+        # Lookup flag by its display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_name}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag not found: {val_name}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_name}'. Please disambiguate.")
+        flag = matches[0]
         t = tmp_timestamp(val_end_time, val_uid, val_comments)
         # Use the modern API method; end_flag() is deprecated
         flag.set_end(t, permissions=session.get('perms', []))
@@ -1736,16 +1758,27 @@ def replace_flag():
             for name in val_flag_components:
                 allowed_list.append(p.Component.from_db(name))
 
-        flag_old = p.Flag.from_db(val_flag)
+        # Lookup existing flag by display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_flag}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag to replace not found: {val_flag}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_flag}'. Please disambiguate.")
+        flag_old = matches[0]
         
         start = tmp_timestamp(val_start_time, val_uid, val_start_comments)
         if val_end_time != str(0):
             end = tmp_timestamp(val_end_time, val_uid, val_start_comments)
         else:
             end = None
-        flag_new = Flag(val_name, start, flag_severity, flag_type, 
-                        comments=val_comments, end=end, 
-                        components=allowed_list)
+        # Note: Flag does not have a 'name' attribute in the data model.
+        # We store the display name in 'notes' to preserve UI behaviour.
+        flag_new = p.Flag(type=flag_type,
+                          severity=flag_severity,
+                          notes=val_name,
+                          start=start,
+                          end=end,
+                          components=allowed_list)
         flag_old.replace(flag_new, permissions=session.get('perms', []))
 
         return {'result': True}
@@ -1768,8 +1801,13 @@ def disable_flag():
     try: 
         val_name = escape(request.args.get('name'))
 
-        # Need to initialize an instance of a flag first.
-        flag = p.Flag.from_db(val_name)
+        # Lookup flag by its display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_name}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag not found: {val_name}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_name}'. Please disambiguate.")
+        flag = matches[0]
         flag.disable()
 
         return {'result': True}
@@ -1883,8 +1921,16 @@ def get_flag_list():
             order_by=[(order_by, order_direction)],
             filters=filt
         )
-
-        return {"result": [f.as_dict() for f in flags]}
+        result = []
+        for f in flags:
+            d = f.as_dict()
+            # Ensure UI gets a 'name' and 'comments' field; Flag stores 'notes'
+            if 'notes' in d and 'name' not in d:
+                d['name'] = d['notes']
+            if 'comments' not in d:
+                d['comments'] = d.get('notes', '')
+            result.append(d)
+        return {"result": result}
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}

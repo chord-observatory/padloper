@@ -681,7 +681,8 @@ function ComponentPage() {
      * and sort all the properties and connections by their start time.
      */
     useEffect(() => {
-        fetch(withBase(`/api/components_name/${name}`))
+        const encoded = encodeURIComponent(name);
+        fetch(withBase(`/api/components_name/${encoded}`))
         .then(requireOkJson)
         .then(data => {
             data.result.properties.sort(
