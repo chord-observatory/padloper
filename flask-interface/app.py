@@ -2240,6 +2240,18 @@ def new_set_user_group():
     :rtype: dict
     """
     try:
+        # Require admin membership to assign users to groups
+        acting = session.get('user')
+        if not acting:
+            return ({'error': 'Unauthorized'}), 401
+        try:
+            acting_user = p.User.from_db(acting)
+            acting_groups = acting_user.get_groups()
+            is_admin = any(getattr(gr, 'name', '') == 'admin' for gr in acting_groups)
+        except Exception:
+            is_admin = False
+        if not is_admin:
+            return ({'error': 'Forbidden: admin required to modify user groups'}), 403
 
         val_user = escape(request.form.get('user'))
         val_group = escape(request.form.get('group'))

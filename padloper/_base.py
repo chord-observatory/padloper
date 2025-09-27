@@ -25,6 +25,7 @@ permissions_set = {
     # protected
     'Component;add',
     'Component;replace',
+    'Component;disable',
     'Component;unset_property',
     'Component;replace_property',
     'Component;disable_property',
@@ -102,10 +103,19 @@ permissions_set = {
     # Flag:
     # protected
     'Flag;replace',
+    'Flag;disable',
 
     # general
     'Flag;add',
     'Flag;set_end',
+
+    # Edges:
+    'RelationConnection;disable',
+
+    # Users and Groups:
+    'User;add',
+    'User;add_group',
+    'UserGroup;add',
 }
 
 def check_permission(permission, class_name, method_name):
@@ -1405,7 +1415,8 @@ class User(Vertex):
     ]
     primary_attr: str = "name"
 
-    def add_group(self, group, strict_add: bool=False):
+    @authenticated
+    def add_group(self, group, strict_add: bool=False, permissions=None):
         """Connect this User to a UserGroup with a rel_user_group edge.
 
         :param group: A UserGroup to connect this User to
@@ -1433,7 +1444,7 @@ class User(Vertex):
 
         # Direction: group -> user (outVertex=group)
         e = RelationUserGroup(inVertex=self, outVertex=group)
-        e.add()
+        e.add(permissions=permissions)
 
         # Keep local attribute view in sync for this instance
         try:
