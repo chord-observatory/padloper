@@ -283,6 +283,8 @@ class Component(Vertex):
         # Build up the result of format (flag vertex)
         result = []
 
+        # Local import to avoid circular dependency with _flag_nodes importing Component
+        from _flag_nodes import Flag
         for q in query:
             flag = Flag.from_id(q)
             result.append((flag))
@@ -304,7 +306,7 @@ class Component(Vertex):
         query = g.t.V(self.id()).inE(RelationSubcomponent.category) \
                    .has('active', True).otherV().id_()
 
-        return [Component.from_id(q, permissions=permissions) for q in query.toList()]
+        return [Component.from_id(q) for q in query.toList()]
 
     @authenticated
     def get_supercomponents(self, permissions = None):
@@ -324,7 +326,7 @@ class Component(Vertex):
         query = g.t.V(self.id()).outE(RelationSubcomponent.category) \
                    .has('active', True).otherV().id_()
 
-        return [Component.from_id(q, permissions=permissions) for q in query.toList()]
+        return [Component.from_id(q) for q in query.toList()]
 
     @authenticated
     def set_property(

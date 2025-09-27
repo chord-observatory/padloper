@@ -213,9 +213,38 @@ def get_component_by_name(name):
     """
     try:
         comp = p.Component.from_db(str(escape(name)))
-        return {
-            'result': comp.as_dict(permissions=session.get('perms', []))
-        }
+        data = comp.as_dict(permissions=session.get('perms', []))
+
+        # Normalize embedded Flag objects for UI compatibility
+        flags = data.get('flags', []) or []
+        for f in flags:
+            # Ensure 'name' and 'comments' exist; map from 'notes'
+            if 'name' not in f and 'notes' in f:
+                f['name'] = f['notes']
+            if 'comments' not in f:
+                f['comments'] = f.get('notes', '')
+
+            # Flatten start/end Timestamp convenience fields expected by UI
+            s = f.get('start')
+            if s is not None:
+                try:
+                    f['start_time'] = s.get('time') if isinstance(s, dict) else s.time
+                    f['start_uid'] = s.get('uid') if isinstance(s, dict) else s.uid
+                    f['start_edit_time'] = s.get('edit_time') if isinstance(s, dict) else s.edit_time
+                    f['start_comments'] = s.get('comments') if isinstance(s, dict) else s.comments
+                except Exception:
+                    pass
+            e = f.get('end')
+            if e is not None:
+                try:
+                    f['end_time'] = e.get('time') if isinstance(e, dict) else e.time
+                    f['end_uid'] = e.get('uid') if isinstance(e, dict) else e.uid
+                    f['end_edit_time'] = e.get('edit_time') if isinstance(e, dict) else e.edit_time
+                    f['end_comments'] = e.get('comments') if isinstance(e, dict) else e.comments
+                except Exception:
+                    pass
+
+        return {'result': data}
     except Exception as e:
         print(e)
         # Distinguish not-found from other errors when possible
@@ -540,7 +569,6 @@ def replace_component():
     :rtype: dict
     """
     try:
-        raise Exception("replace error")
         val_name = escape(request.args.get('name'))
         val_type = escape(request.args.get('type'))
         val_version = escape(request.args.get('version'))
@@ -551,10 +579,21 @@ def replace_component():
         component_type = p.ComponentType.from_db(val_type)
 
         # Query the database and return the ComponentVersion instance based on
-        # component version name and component type name.
+        # component version name and component type name. The current API
+        # accepts only a primary attribute; filter by type explicitly.
         if val_version:
-            component_version = p.ComponentVersion.from_db(val_version,
-                                                           component_type)
+            matches = p.ComponentVersion.get_list(
+                filters={"name": val_version, "type": val_type}
+            )
+            if len(matches) == 0:
+                raise Exception(
+                    f"ComponentVersion not found for name '{val_version}' and type '{val_type}'."
+                )
+            if len(matches) > 1:
+                raise Exception(
+                    f"Multiple ComponentVersions found for name '{val_version}' and type '{val_type}'."
+                )
+            component_version = matches[0]
         else:
             component_version = None
 
