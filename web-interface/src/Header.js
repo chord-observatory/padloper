@@ -1,5 +1,5 @@
 import { 
-    Button, AppBar, Toolbar, Typography, Stack, Drawer, List, ListItemButton, ListItemText, useMediaQuery, useTheme
+    Button, AppBar, Toolbar, Typography, Stack, Drawer, List, ListItemButton, ListItemText, useMediaQuery, useTheme, Alert
 } from '@mui/material';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
@@ -62,6 +62,25 @@ function Header() {
         setAnchorEl(null);
       };
 
+    // Detect read-only (no permissions) to show a banner.
+    const [isReadOnly, setIsReadOnly] = useState(false);
+    useEffect(() => {
+        async function checkPerms(login) {
+            try {
+                const res = await fetch(withBase(`/api/get_permissions?username=${encodeURIComponent(login)}`));
+                if (!res.ok) return setIsReadOnly(false);
+                const data = await res.json();
+                const perms = data && data.result ? data.result : [];
+                setIsReadOnly(!(perms && perms.length > 0));
+            } catch (e) {
+                setIsReadOnly(false);
+            }
+        }
+        if (userData && userData.login) {
+            checkPerms(userData.login);
+        }
+    }, [userData]);
+
     // TODO: export function to use elsewhere
     async function getUserData() {
       await fetch(withBase(`/oauth/getUserData`), {
@@ -84,6 +103,7 @@ function Header() {
         return <></>;
     }
     return (
+        <>
         <AppBar 
             position="static"
             style={{
@@ -243,7 +263,11 @@ function Header() {
                 onClose={() => setMobileOpen(false)}
             >
                 <List sx={{ width: 280 }}>
-                    <ListItemText primary="Components" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemText
+                        primary="Components"
+                        sx={{ px: 2, pt: 2, pb: 0 }}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                    />
                     <ListItemButton component={Link} to={'/list/component'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="Component List" />
                     </ListItemButton>
@@ -254,12 +278,20 @@ function Header() {
                         <ListItemText primary="Component Versions" />
                     </ListItemButton>
 
-                    <ListItemText primary="Properties" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemText
+                        primary="Properties"
+                        sx={{ px: 2, pt: 2, pb: 0 }}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                    />
                     <ListItemButton component={Link} to={'/list/property-types'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="Property Types" />
                     </ListItemButton>
 
-                    <ListItemText primary="Flags" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemText
+                        primary="Flags"
+                        sx={{ px: 2, pt: 2, pb: 0 }}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                    />
                     <ListItemButton component={Link} to={'/list/flag-types'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="Flag Types" />
                     </ListItemButton>
@@ -267,12 +299,20 @@ function Header() {
                         <ListItemText primary="Flags" />
                     </ListItemButton>
 
-                    <ListItemText primary="Visualizations" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemText
+                        primary="Visualizations"
+                        sx={{ px: 2, pt: 2, pb: 0 }}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                    />
                     <ListItemButton component={Link} to={'/component-connections'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="Component Connections" />
                     </ListItemButton>
 
-                    <ListItemText primary="Manage Users" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemText
+                        primary="Manage Users"
+                        sx={{ px: 2, pt: 2, pb: 0 }}
+                        primaryTypographyProps={{ fontWeight: 'bold' }}
+                    />
                     <ListItemButton component={Link} to={'/manage/users'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="User Management" />
                     </ListItemButton>
@@ -282,11 +322,39 @@ function Header() {
                     <ListItemButton component={Link} to={'/users'} onClick={() => setMobileOpen(false)}>
                         <ListItemText primary="Add Users" />
                     </ListItemButton>
+
+                    {userData && userData.login && (
+                        <>
+                            <ListItemText
+                                primary="Account"
+                                sx={{ px: 2, pt: 2, pb: 0 }}
+                                primaryTypographyProps={{ fontWeight: 'bold' }}
+                            />
+                            <ListItemButton component={'a'} href={userData.html_url} target="_blank" rel="noopener noreferrer" onClick={() => setMobileOpen(false)}>
+                                <ListItemText primary="GitHub Profile" />
+                            </ListItemButton>
+                            <ListItemButton onClick={() => { 
+                                localStorage.removeItem("accessToken");
+                                axios.post(withBase("/api/logout"))
+                                    .then(res => { console.log(res.data); })
+                                    .catch(err => { console.error('Error:', err); })
+                                    .finally(() => { window.location.reload(false); });
+                            }}>
+                                <ListItemText primary="Sign out" />
+                            </ListItemButton>
+                        </>
+                    )}
                 </List>
             </Drawer>
 
           </Toolbar>
         </AppBar>
+        {isReadOnly && (
+            <Alert severity="info" sx={{ borderRadius: 0 }}>
+                You are in read-only mode and have no write permissions.
+            </Alert>
+        )}
+        </>
     )
 }
 
