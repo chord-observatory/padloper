@@ -1,10 +1,11 @@
 import { 
-    Button, AppBar, Toolbar, Typography, Stack
+    Button, AppBar, Toolbar, Typography, Stack, Drawer, List, ListItemButton, ListItemText, useMediaQuery, useTheme
 } from '@mui/material';
 import Avatar from '@mui/material/Avatar';
 import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
+import MenuIcon from '@mui/icons-material/Menu';
 import GithubIcon from "mdi-react/GithubIcon";
 import axios from 'axios'
 import { useState, useEffect, useContext } from 'react';
@@ -12,7 +13,7 @@ import { OAuthContext } from './contexts/OAuthContext';
 import { withBase, authHeaders, requireOkJson } from './paths.js';
 
 import HeaderMenuButton from './HeaderMenuButton.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 /**
  * MUI Component that returns the header that is seen at the top of the web
@@ -25,6 +26,9 @@ function Header() {
     const { accessToken, setAccessToken } = useContext(OAuthContext); 
     const navigate = useNavigate();
     let login_ok = true;
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     useEffect(() => {
         // TODO: remove local storage
@@ -84,8 +88,9 @@ function Header() {
             position="static"
             style={{
                 marginBottom: '16px',
-            }}>
-          <Toolbar>
+            }}
+            sx={{ width: '100%' }}>
+          <Toolbar sx={{ flexWrap: 'wrap' }}>
             <Typography 
             variant="h6"
             style={{
@@ -94,7 +99,20 @@ function Header() {
               Padloper
             </Typography>
 
-            <Stack direction="row" spacing={3} alignItems={'center'}>
+            {/* Mobile hamburger menu button */}
+            <IconButton
+                color="inherit"
+                edge="start"
+                onClick={() => setMobileOpen(true)}
+                sx={{ display: { xs: 'flex', md: 'none' }, mr: 1 }}
+                aria-label="open navigation menu"
+            >
+                <MenuIcon />
+            </IconButton>
+
+            {/* Desktop navigation */}
+            <Stack direction="row" spacing={3} alignItems={'center'}
+                   sx={{ flexWrap: 'wrap', rowGap: 1, columnGap: 2, display: { xs: 'none', md: 'flex' } }}>
 
                 {/*Pass in the names of the links along with their paths*/}
                 
@@ -217,6 +235,55 @@ function Header() {
                 </Menu>
 
             </Stack>
+
+            {/* Mobile navigation drawer */}
+            <Drawer
+                anchor="left"
+                open={mobileOpen}
+                onClose={() => setMobileOpen(false)}
+            >
+                <List sx={{ width: 280 }}>
+                    <ListItemText primary="Components" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemButton component={Link} to={'/list/component'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Component List" />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to={'/list/component-types'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Component Types" />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to={'/list/component-versions'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Component Versions" />
+                    </ListItemButton>
+
+                    <ListItemText primary="Properties" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemButton component={Link} to={'/list/property-types'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Property Types" />
+                    </ListItemButton>
+
+                    <ListItemText primary="Flags" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemButton component={Link} to={'/list/flag-types'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Flag Types" />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to={'/list/flag'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Flags" />
+                    </ListItemButton>
+
+                    <ListItemText primary="Visualizations" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemButton component={Link} to={'/component-connections'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Component Connections" />
+                    </ListItemButton>
+
+                    <ListItemText primary="Manage Users" sx={{ px: 2, pt: 2, pb: 0, fontWeight: 600 }} />
+                    <ListItemButton component={Link} to={'/manage/users'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="User Management" />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to={'/manage/users/groups'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="User Group Management" />
+                    </ListItemButton>
+                    <ListItemButton component={Link} to={'/users'} onClick={() => setMobileOpen(false)}>
+                        <ListItemText primary="Add Users" />
+                    </ListItemButton>
+                </List>
+            </Drawer>
 
           </Toolbar>
         </AppBar>
