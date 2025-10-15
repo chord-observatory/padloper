@@ -80,8 +80,10 @@ def set_perms(username):
     """
     print("------------------")
     print(username)
+    session['uid'] = username
     user = p.User.from_db(username)
     perms = user.get_permissions()
+    print(">>> ", perms)
     if perms:
         session['perms'] = perms
     else:
@@ -156,8 +158,7 @@ def get_component_by_name(name):
     :rtype: dict
     """
     return {
-        'result': p.Component.from_db(str(escape(name)),
-                                      permissions=session.get('perms'))\
+        'result': p.Component.from_db(str(escape(name)))\
                    .as_dict(permissions=session.get('perms'))
     }
 
@@ -258,7 +259,8 @@ def set_component_type():
         component_type = p.ComponentType(name=val_name, comments=val_comments)
 
 
-        component_type.add(permissions=session.get('perms'))
+        component_type.add(permissions=session.get('perms'),
+                           uid=session.get('uid'))
 
         return {'result': True}
 
@@ -338,7 +340,9 @@ def set_component_version():
         component_version = p.ComponentVersion(
             name=val_name, type=component_type, comments=val_comments)
 
-        component_version.add(permissions=session.get('perms'))
+        component_version.add(permissions=session.get('perms'),
+                              uid=session.get('uid'))
+
 
         return {'result': True}
 
@@ -444,7 +448,10 @@ def set_component():
             # Need to initialize an instance of a component first.
             component = p.Component(name=name, type=component_type,
                                     version=component_version)
-            component.add(permissions=session.get('perms'))
+            print(component)
+            print(session.get("perms"))
+            component.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
 
 
         return {'result': True}
@@ -577,7 +584,8 @@ def set_property_type():
                                        n_values=int(val_values), 
                                        allowed_types=allowed_list,
                                        comments=val_comments)
-        property_type.add(permissions=session.get('perms'))
+        property_type.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
 
         return {'result': True}
 
@@ -1423,7 +1431,8 @@ def set_flag_type():
 
         # Need to initialize an instance of a component version first.
         flag_type = p.FlagType(val_name, val_comments)
-        flag_type.add(permissions=session.get('perms'))
+        flag_type.add(permissions=session.get('perms'),
+                      uid=session.get('uid'))
 
         return {'result': True}
 
@@ -1482,7 +1491,8 @@ def set_flag_severity():
 
         # Need to initialize an instance of a component version first.
         flag_severity = p.FlagSeverity(val_name)
-        flag_severity.add(permissions=session.get('perms'))
+        flag_severity.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
 
         return {'result': True}
     
@@ -1578,7 +1588,7 @@ def set_flag():
         flag = p.Flag(val_name, start, severity, type, 
                       comments=val_comments, end=end,
                       components=allowed_list)
-        flag.add(permissions=session.get('perms'))
+        flag.add(permissions=session.get('perms'), uid=session.get('uid'))
 
         return {'result': True}
 
@@ -1926,7 +1936,7 @@ def set_permission():
     # Need to initialize an instance of a component first.
     permission = p.Permission(val_name, val_comment)
 
-    permission.add()
+    permission.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -1965,7 +1975,7 @@ def set_user_group():
 
     # print(f"user_group: {user_group}")
 
-    user_group.add()
+    user_group.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -2013,7 +2023,7 @@ def set_user():
     else:
         user = p.User(val_uname, val_pwd_hash, val_institution)
 
-    user.add()
+    user.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -2022,7 +2032,8 @@ def new_user():
     val_username = request.form.get('username')
     val_institution = request.form.get('institution')
     user = p.User(val_username, val_institution)
-    user.add()
+    user.add(permissions=session.get('perms'),
+             uid=session.get('uid'))
     # print(user)
     return {'result': True}
 
@@ -2079,6 +2090,7 @@ def new_set_user_group():
 @app.route("/api/get_permissions", methods=['GET'])
 def get_permissions():
     val_username = request.args.get('username')
+    print(val_username)
     user = p.User.from_db(val_username)
     perms = user.get_permissions()
     print(perms)

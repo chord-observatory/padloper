@@ -91,6 +91,7 @@ g.addV().property("category", "user").property("time_added", 1)\
         .property("uid_added", "master").property("time_disabled", 2**63 - 1)\
         .property("active", true).property("replacement", 0)\
         .property("name", "master")\
+        .next()
 user = g.V().has("category", "user").has("name", "master").next()
 g.addV().property("category", "user_group").property("time_added", 1)\
         .property("uid_added", "master").property("time_disabled", 2**63 - 1)\
@@ -128,3 +129,4 @@ g.V(group).addE("rel_user_group").to(user)\
           .property('category', "rel_user_group").property("time_added", 1)\
           .property("time_disabled", 2**63 - 1).property("active", true)\
           .property("replacement", 0).next()
+graph.tx().commit()

@@ -1,4 +1,5 @@
 import padloper as p
+from gremlin_python.process.graph_traversal import __
 from gremlin_python.process.traversal import TextP
 
 test_prefix = "padloper-scripts-tests_"
@@ -17,6 +18,7 @@ p.set_user("master")
 
 # Start fresh by deleting any elements from the last test that may still be in
 # the database.
+
 print("Dropping old test vertices.")
 p.g.t.V().has("name", TextP.startingWith(tnm(""))).drop().iterate()
 p.g.t.V().has("name", TextP.startingWith(user_prefix)).drop().iterate()
