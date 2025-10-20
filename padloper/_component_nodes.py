@@ -304,7 +304,7 @@ class Component(Vertex):
         query = g.t.V(self.id()).inE(RelationSubcomponent.category) \
                    .has('active', True).otherV().id_()
 
-        return [Component.from_id(q, permissions=permissions) for q in query.toList()]
+        return [Component.from_id(q) for q in query.toList()]
 
     @authenticated
     def get_supercomponents(self, permissions = None):
@@ -324,7 +324,7 @@ class Component(Vertex):
         query = g.t.V(self.id()).outE(RelationSubcomponent.category) \
                    .has('active', True).otherV().id_()
 
-        return [Component.from_id(q, permissions=permissions) for q in query.toList()]
+        return [Component.from_id(q) for q in query.toList()]
 
     @authenticated
     def set_property(
@@ -1201,7 +1201,7 @@ class Component(Vertex):
         # TODO: at_time has not yet been implemented!
         assert(at_time == None)
         
-        base = super().as_dict()
+        base = super().as_dict(permissions=permissions)
 
         if not bare:
             prop_dicts = [{**prop.as_dict(), **rel.as_dict()} \
@@ -1209,7 +1209,8 @@ class Component(Vertex):
                     self.get_all_properties(permissions=permissions)
             ]
 
-            conn_dicts = [{**{"name": conn.other_vertex(self).name},
+            conn_dicts = [{**{"name": conn.other_vertex(self,
+                                                        permissions=permissions).name},
                            **conn.as_dict()} \
                 for conn in self.get_connections(exclude_subcomps=True,
                                                  permissions=permissions)

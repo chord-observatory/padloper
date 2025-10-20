@@ -821,15 +821,18 @@ class Vertex(Element):
             g.t.V(self.id()).bothE()[i].property('active', False).property(
                 'time_disabled', disable_time).next()
 
-    def as_dict(self):
+    @authenticated
+    def as_dict(self, permissions=None):
         ret = {}
         for a in self._vertex_attrs:
             if issubclass(a.type, Vertex):
                 if a.is_list:
-                    ret[a.name] = [x.as_dict() for x in getattr(self, a.name)]
+                    ret[a.name] = [x.as_dict(permissions=permissions) \
+                                   for x in getattr(self, a.name)]
                 else:
                     if getattr(self, a.name) is not None:
-                        ret[a.name] = getattr(self, a.name).as_dict()
+                        ret[a.name] = getattr(self, a.name).as_dict(\
+                            permissions=permissions)
             else:
                 ret[a.name] = getattr(self, a.name)
         for x in ["time_added", "uid_added", "time_disabled", "uid_disabled",

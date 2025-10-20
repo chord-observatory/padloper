@@ -227,7 +227,9 @@ def get_component_list():
             filters=filt,
         )
     
-        return {'result': [c.as_dict(bare=True) for c in components]}
+        return {'result': [c.as_dict(\
+                   bare=True, permissions=session.get('perms')) \
+                for c in components]}
 
     except Exception as e:
         print(e)
@@ -1295,13 +1297,14 @@ def get_connections():
 
     c = p.Component.from_db(val_name)
 
-    connections = c.get_connections(at_time=val_time)
+    connections = c.get_connections(at_time=val_time,
+                                    permissions=session.get('perms'))
 
     return {
         'result': [
             {
-                'inVertex': conn.inVertex.as_dict(),
-                'outVertex': conn.outVertex.as_dict(),
+                'inVertex': conn.inVertex.as_dict(permissions=session.get('perms')),
+                'outVertex': conn.outVertex.as_dict(permissions=session.get('perms')),
                 'subcomponent': True if isinstance(conn,
                                                    p.RelationSubcomponent) \
                                 else False,
