@@ -1,4 +1,4 @@
-FROM janusgraph/janusgraph:0.6.2
+FROM janusgraph/janusgraph:1.1.0
 
 USER root
 
