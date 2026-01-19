@@ -292,6 +292,7 @@ class Component(Vertex):
 
         return result
 
+    @authenticated
     def get_network(self, depth, time):
         """Return all nodes and edges for a given trace depth at a given time
 
