@@ -266,7 +266,7 @@ function NewConnectionsPanel() {
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const { fitView } = useReactFlow();
 
-    const onConnect = (params) => setEdges((eds) => addEdge(params, eds));
+    // const onConnect = (params) => setEdges((eds) => addEdge(params, eds));
     const onLayout = useCallback(({ direction }) => {
         if (!isMounted.current) {
             return;
@@ -591,7 +591,7 @@ function NewConnectionsPanel() {
                         <ReactFlow
                             nodes={nodes}
                             edges={edges}
-                            onConnect={onConnect}
+                            // onConnect={onConnect}
                             onNodesChange={onNodesChange}
                             onEdgesChange={onEdgesChange}
                             nodeTypes={nodeTypes}
