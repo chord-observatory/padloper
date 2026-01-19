@@ -188,7 +188,8 @@ def _get_user():
     u = g._user
     if u is None:
         raise RuntimeError(
-            "You must call padloper.set_user() before performing this operation."
+            "You must call padloper.set_user() before performing "
+            "this operation."
         )
     return u
 
@@ -205,9 +206,9 @@ def _parse_time(t):
 class Element(object):
     """
     The simplest element. Contains an ID.
-    :ivar id: The unique identifier of the element. 
+    :ivar id: The unique identifier of the element.
 
-    If id is _VIRTUAL_ID_PLACEHOLDER, then the 
+    If id is _VIRTUAL_ID_PLACEHOLDER, then the
     element is not in the actual graph and only exists client side.
     """
 
@@ -240,12 +241,12 @@ class Element(object):
 
     def __repr__(self):
         return str(self._id)
-        
+
 
 class VertexAttr(object):
     def __init__(self, name, type, edge_class=None, optional=False,
                  default=None, is_list=False, list_len=(0, int(1e10))):
-        """A class for describing an attribute of a Vertex, or a connection to 
+        """A class for describing an attribute of a Vertex, or a connection to
         another Vertex that classifies the Vertex.
 
         :param name: The key name of the attribute.
@@ -288,7 +289,7 @@ class Vertex(Element):
 
     :ivar category: The category of the Vertex.
     :ivar time_added: When this vertex was added to the database (UNIX time).
-    :ivar time_disabled: When this vertex was disabled in the database (UNIX 
+    :ivar time_disabled: When this vertex was disabled in the database (UNIX
           time).
     :ivar active: Whether the vertex is disabled or not.
     :ivar replacement: If the vertex has been replaced, then this property
@@ -306,7 +307,7 @@ class Vertex(Element):
     active: bool
     replacement: int
 
-    def __new__(cls, _id: int = g._VIRTUAL_ID_PLACEHOLDER, 
+    def __new__(cls, _id: int = g._VIRTUAL_ID_PLACEHOLDER,
                  _time_added: int = g._TIMESTAMP_NO_EDITTIME_VALUE,
                  _uid_added: str = None, **kwargs):
         if _id is not g._VIRTUAL_ID_PLACEHOLDER and _id in g._vertex_cache:
@@ -314,7 +315,7 @@ class Vertex(Element):
         else:
             return object.__new__(cls)
 
-    def __init__(self, _id: int = g._VIRTUAL_ID_PLACEHOLDER, 
+    def __init__(self, _id: int = g._VIRTUAL_ID_PLACEHOLDER,
                  _time_added: int = g._TIMESTAMP_NO_EDITTIME_VALUE,
                  _uid_added: str = None, **kwargs):
         """
@@ -366,7 +367,7 @@ class Vertex(Element):
         self.replacement = 0
         self.active = True
         Element.__init__(self, _id)
-    
+
     def __repr__(self):
         if self.primary_attr is None:
             return str(self._id)
@@ -423,8 +424,8 @@ class Vertex(Element):
     def from_db(cls, primary_attr: str, allow_disabled: bool = False):
         """Query the database and return an instance of the Vertex by searching
         for its primary attribute (typically "name").
-        
-        :param primary_attr: The primary attribute name of the component 
+
+        :param primary_attr: The primary attribute name of the component
             serverside.
         :type primary_attr: str
         :param allow_disabled: Whether to only select vertices with active=True.
@@ -444,7 +445,7 @@ class Vertex(Element):
             raise NotInDatabase("Could not find %s in the DB." %\
                                 primary_attr)
 
-        return cls._from_attrs(d) 
+        return cls._from_attrs(d)
 
     @classmethod
     def from_id(cls, id: int, allow_disabled: bool = False):
@@ -513,13 +514,13 @@ class Vertex(Element):
                 arg[a.name] = Timestamp._from_dict(attrs, "%s_" % a.name)
             else:
                 arg[a.name] = attrs[a.name]
-            
+
         return Vertex._cache_vertex(cls(**arg))
 
     @classmethod
     def _cache_vertex(cls, vertex):
         """Add a vertex and its ID to the vertex cache if not already added,
-        and return this new cached vertex. 
+        and return this new cached vertex.
 
         TODO: Raise an error if already cached, because that'd mean there's
         an implementation error with the caching.
@@ -539,7 +540,7 @@ class Vertex(Element):
         :param strict_add: If False, then do not throw an error if the vertex
             already exists.
         :type strict_add: bool
-        :param strict_check: If False, then add the vertex even if a vertex 
+        :param strict_check: If False, then add the vertex even if a vertex
             exists in the database with the same name and category.
         : type strict_check: bool
 
@@ -625,7 +626,7 @@ class Vertex(Element):
            set to True in the database are ignored; otherwise they are
            considered to be "in" the DB.
         :type allowed_removed: bool
-            
+
         :return: True if element is added to database, False otherwise.
         :rtype: bool
         """
@@ -680,7 +681,7 @@ class Vertex(Element):
                     else:
                         if va.is_list:
                             q = q.not_( \
-                                  __.has(va.name, 
+                                  __.has(va.name,
                                          P.without(getattr(self, va.name))))
                         else:
                             q = q.has(va.name, getattr(self, va.name))
@@ -886,9 +887,9 @@ class Vertex(Element):
     def get_count(cls, filters: list = [], allow_disabled: bool = False):
         """
         Return the number of vertices in the DB of this type, subject to
-        provided filters. See docstring for `Vertex.get_list()` for more on 
+        provided filters. See docstring for `Vertex.get_list()` for more on
         filters.
-        
+
         :param filters: See `Vertex.get_list()` documentation.
         :type filters: A list of dictionaries; if a single dictionary is passed
             it is automatically treated as list of length one.
@@ -898,14 +899,14 @@ class Vertex(Element):
         """
         if not isinstance(filters, list):
             filters = [filters]
-        
+
         q = cls._list_filter_traversal(filters)
         if not allow_disabled:
             q = q.has("active", True)
         return q.count().next()
 
     @classmethod
-    def get_list(cls, range: tuple = (0, -1), order_by: list = [], 
+    def get_list(cls, range: tuple = (0, -1), order_by: list = [],
                  filters: list = [], allow_disabled: bool = False):
         """
         Return a list of Vertex instances based in the range :param range:,
@@ -963,10 +964,10 @@ class Vertex(Element):
                     if va.name == ob[0]:
                         break
                 if va is None:
-                    raise TypeError("Filter key %s not in Vertex." % and_key)
+                    raise TypeError("Filter key %s not in Vertex." % ob[0])
                 if issubclass(va.type, Vertex):
                     t = t.by(__.both(va.edge_class.category)\
-                               .values(va.type.primary_attr), 
+                               .values(va.type.primary_attr),
                                Order.asc if ob[1] == "asc" else Order.desc)
                 else:
                     t = t.by(ob[0], Order.asc if ob[1] == "asc" else Order.desc)
@@ -1029,7 +1030,7 @@ class Edge(Element):
     @classmethod
     def from_db(cls, id: int, allow_disabled: bool = False):
         """Query the database and return an instance of the Edge, given its ID.
-        
+
         :param id: The ID of the edge
         :type primary_attr: int
         :param allow_disabled: Whether to only select edgeswith active=True.
@@ -1053,7 +1054,7 @@ class Edge(Element):
 #        self.inVertex = inVertex
 #        self.outVertex = outVertex
 #
-#        return cls._from_attrs(d) 
+#        return cls._from_attrs(d)
 
 
     @authenticated
@@ -1129,7 +1130,7 @@ class Edge(Element):
         g.t.E(self.id()).property('active', False)\
                         .property('time_disabled', disable_time).iterate()
 
-    @authenticated                        
+    @authenticated
     def replace(self, newEdge, disable_time: int = int(time.time()),
                 permissions=None):
         """Replaces the edge in the JanusGraph DB with a new edge by
@@ -1162,7 +1163,7 @@ class Edge(Element):
 
         return newEdge
 
-        
+
     @authenticated
     def other_vertex(self, v, permissions=None):
         """Given one vertex of this edge, return the other.
@@ -1180,6 +1181,7 @@ class Edge(Element):
 
     def __str__(self, connector=" -> "):
         return self.inVertex.name + connector + self.outVertex.name
+
 
 class Timestamp(object):
     """A timestamp for starting or ending connections, properties, etc.
@@ -1262,7 +1264,7 @@ class Timestamp(object):
         This is for when the end timestamp does not yet exist; the timestamp has
         no user id, and reserved values for the time and edit_time.
         """
-        return cls.__raw_init__(g._TIMESTAMP_NO_ENDTIME_VALUE, "", 
+        return cls.__raw_init__(g._TIMESTAMP_NO_ENDTIME_VALUE, "",
                                 g._TIMESTAMP_NO_EDITTIME_VALUE, comments="")
 
     def as_dict(self):
@@ -1343,7 +1345,7 @@ class TimestampedEdge(Edge):
     def _end(self, end: Timestamp):
         """Set the end timestamp.
 
-        :param end: The ending timestamp of the connection. 
+        :param end: The ending timestamp of the connection.
         :type end: Timestamp
         """
 
@@ -1393,8 +1395,6 @@ class UserGroup(Vertex):
         for p in kwargs["permissions"]:
             if p not in permissions_set:
                 raise ValueError("Unknown permission \"%s\"." % p)
-
-#    def add_permission(self, permission, strict_add=False):
 
 
 class User(Vertex):
