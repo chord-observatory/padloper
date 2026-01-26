@@ -8,7 +8,7 @@ import NewVisualizer from './NewVisualizer.js';
 import FlagTypeList from './FlagTypeList.js'
 import FlagList from './FlagList.js';
 import Header from './Header.js';
-import Barcode from './Barcode.js';
+// import Barcode from './Barcode.js';
 
 import { ReactFlowProvider } from 'reactflow';
 
