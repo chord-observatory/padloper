@@ -11,9 +11,6 @@ services:
       - janusgraph
     ports:
       - "4300:4300"
-    volumes:
-      - ./flask-interface:/flask-interface
-      - ./padloper:/padloper
     networks:
       padloper-network:
         ipv4_address: 172.20.0.20
@@ -41,10 +38,6 @@ services:
     platform: linux/amd64
     ports:
       - "4301:4301"
-    volumes:
-      - ./web-interface/public:/web-interface/public
-      - ./web-interface/src:/web-interface/src
-      - ./web-interface/package.json:/web-interface/package.json
     networks:
       padloper-network:
         ipv4_address: 172.20.0.21
@@ -62,9 +55,6 @@ services:
       CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
     ports:
       - "4000:4000"
-    volumes:
-      - ./oauth-proxy-server/server.js:/oauth-proxy-server/server.js
-      - ./oauth-proxy-server/package.json:/oauth-proxy-server/package.json
     networks:
       padloper-network:
         ipv4_address: 172.20.0.22

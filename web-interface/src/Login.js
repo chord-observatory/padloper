@@ -13,12 +13,12 @@ const CLIENT_ID = process.env.REACT_APP_GITHUB_CLIENT_ID || "";
 export default function Login() {
     const [rerender, setRerender] = useState(false);
     const [userData, setUserData] = useState({});
-    const { accessToken, setAccessToken } = useContext(OAuthContext); 
+    const { accessToken, setAccessToken } = useContext(OAuthContext);
 
     // Error data to display, if any.
     const [errorData, setErrorData] = useState(null);
 
-  
+
     // Forward user to github login screen with client ID. Use login
     // forwarded back with a code like localhost:3000/?code=ASDASDASD; then
     // use the code to get access token.
@@ -26,7 +26,7 @@ export default function Login() {
         const queryString = window.location.search;
         const urlParams = new URLSearchParams(queryString);
         const codeParam = urlParams.get('code');
-  
+
         // TODO: remove local storage
         if (codeParam && (localStorage.getItem("accessToken") === null)) {
             async function getAccessToken() {
@@ -57,8 +57,8 @@ export default function Login() {
                         }).catch(err => {
                             console.error('Failed to get user data:', err);
                             setErrorData('Failed to get user data.');
-                        }); 
-                    } 
+                        });
+                    }
                 }).catch(err => {
                     console.error('Failed to obtain access token:', err);
                     setErrorData('Failed to obtain access token.');
@@ -71,7 +71,7 @@ export default function Login() {
             getAccessToken();
         }
     }, []);
-  
+
     function loginWithGithub() {
       if (!CLIENT_ID) {
         console.error("REACT_APP_GITHUB_CLIENT_ID is not configured");
@@ -82,25 +82,25 @@ export default function Login() {
       const redirectUri = encodeURIComponent(window.location.origin + basePath + "/");
       window.location.assign("https://github.com/login/oauth/authorize?client_id=" + CLIENT_ID + "&redirect_uri=" + redirectUri);
     }
-  
+
     return (
       <div className="App">
         <header className="App-header">
           {/* TODO: remove local storage */}
-          {localStorage.getItem("accessToken") ? 
+          {localStorage.getItem("accessToken") ?
           <>
             {Object.keys(userData).length !== 0 ?
             <>
               <h4>Hey there {userData.login}</h4>
               <img width="100px" height="100px" src={userData.avatar_url}/>
-              <a href={userData.html_url} style={{"color": "white"}}>Link 
+              <a href={userData.html_url} style={{"color": "white"}}>Link
                   to GitHub profile</a>
             </>
             :
             <>
             </>
             }
-          </> 
+          </>
           :
           <>
             <div className='container'>

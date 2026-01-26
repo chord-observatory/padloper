@@ -1496,10 +1496,7 @@ def add_component_subcomponent():
         already_subcomponent = False
 
         try:
-            c1.subcomponent_connect(
-                component=c2,
-                permissions=session.get('perms', [])
-            )
+            c1.subcomponent_connect(c2, permissions=session.get('perms', []))
         except p.ComponentAlreadySubcomponentError:
             already_subcomponent = True
 

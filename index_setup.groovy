@@ -1,7 +1,5 @@
 :remote connect tinkerpop.server conf/remote.yaml session
 :remote console
-:remote connect tinkerpop.server conf/remote.yaml session
-:remote console
 
 // IMPORTANT: Keep this file in sync with index_setup.txt.
 // The bootstrap helper (scripts/bootstrap_graph.sh) streams index_setup.txt
@@ -115,7 +113,11 @@ g.addV().property("category", "user_group").property("time_added", 1)\
         .property("permissions", "Property;add")\
         .property("permissions", "Flag;add")\
         .property("permissions", "Flag;replace")\
-        .property("permissions", "Flag;set_end").next()
+        .property("permissions", "Flag;set_end")\
+        .property("permissions", "User;add")\
+        .property("permissions", "User;add_group")\
+        .property("permissions", "UserGroup;add")\
+        .next()
 
 group = g.V().has("category", "user_group").has("name", "admin").next()
 g.V(group).addE("rel_user_group").to(user)\

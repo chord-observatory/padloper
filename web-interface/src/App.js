@@ -8,6 +8,7 @@ import NewVisualizer from './NewVisualizer.js';
 import FlagTypeList from './FlagTypeList.js'
 import FlagList from './FlagList.js';
 import Header from './Header.js';
+import Barcode from './Barcode.js';
 
 import { ReactFlowProvider } from 'reactflow';
 
@@ -142,7 +143,7 @@ function App() {
             // access to the React Flow hooks:
             // https://reactflow.dev/docs/api/react-flow-provider/
           }
-          <Route
+          {/* <Route
             exact={true}
             path="/component-connections"
             element={
@@ -150,7 +151,7 @@ function App() {
                 <ComponentConnectionVisualizer />
               </ReactFlowProvider>
             }
-          />
+          /> */}
 
           {
             /**
@@ -161,7 +162,7 @@ function App() {
           }
           <Route
             exact={true}
-            path="/new-visualizer"
+            path="/component-connections"
             element={
               <ReactFlowProvider>
                 <NewVisualizer />
@@ -174,6 +175,17 @@ function App() {
             the component page for COMP-1.
           */}
           <Route exact path="/component/:name" element={<ComponentPage />} />
+
+          {/**
+           * Barcode scanning to find, connect, and add components
+           */}
+          {/* <Route
+            exact={true}
+            path="/barcode"
+            element={
+              <Barcode />
+            }
+          /> */}
 
         </Routes>
 

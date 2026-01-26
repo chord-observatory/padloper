@@ -121,7 +121,7 @@ permissions_set = {
 def check_permission(permission, class_name, method_name):
     """Called by the @authenticated decorator."""
     #print(f"{class_name};{method_name}")
-    if permission is None:
+    if not permission:
         # Check for global variable. User to be stored as a user vertex.
         try:
             user = _get_user()
@@ -140,8 +140,11 @@ def check_permission(permission, class_name, method_name):
     #                          "an admin.")
     if f"{class_name};{method_name}" in permissions_set and \
         f"{class_name};{method_name}" not in permission:
-        raise NoPermissionsError("User does not have the required " +\
-                                 "permissions to perform this action.")
+        raise NoPermissionsError("User does not have the required "
+                                 "permissions to perform this action "
+                                 f"({class_name};{method_name}). "
+                                 f"User permissions: {permission}. "
+                                 f"User: {user.name}")
 
 
 def authenticated(func):
@@ -971,7 +974,7 @@ class Vertex(Element):
                                Order.asc if ob[1] == "asc" else Order.desc)
                 else:
                     t = t.by(ob[0], Order.asc if ob[1] == "asc" else Order.desc)
-        t = t.range(range[0], range[1])
+        t = t.range_(range[0], range[1])
         t = cls._attrs_query(t, allow_disabled)
         return [cls._from_attrs(t_i) for t_i in t.toList()]
 
@@ -1046,8 +1049,7 @@ class Edge(Element):
         try:
             d = d.next()
         except StopIteration:
-            raise NotInDatabase("Could not find %s in the DB." %\
-                                primary_attr)
+            raise NotInDatabase("Could not find %s in the DB." % id)
 
 #        Element.__init__(self, id)
 #

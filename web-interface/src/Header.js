@@ -185,12 +185,24 @@ function Header() {
                             name: 'Component Connections',
                             link: `/component-connections`
                         },
-                        {
-                            name: 'New Visualization',
-                            link: `/new-visualizer`
-                        },
+                        // {
+                        //     name: 'New Visualization',
+                        //     link: `/new-visualizer`
+                        // },
                     ]}
                 />
+
+                {/* <Button
+                    // id="basic-button"
+                    // aria-controls={open ? 'basic-menu' : undefined}
+                    // aria-haspopup="true"
+                    // aria-expanded={open ? 'true' : undefined}
+                    component={Link}
+                    to="/barcode"
+                    color="inherit"
+                >
+                    Barcode
+                </Button> */}
 
                 <HeaderMenuButton
                     name={"Manage Users"}
