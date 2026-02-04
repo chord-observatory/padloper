@@ -24,8 +24,12 @@ import Stack from '@mui/material/Stack';
 import OutlinedInput from '@mui/material/OutlinedInput';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
+import Fab from '@mui/material/Fab'
 
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
+import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 //import DragHandleRoundedIcon from '@mui/icons-material/DragHandleRounded';
 import SortIcon from '@mui/icons-material/Sort';
 
@@ -109,70 +113,6 @@ const ComponentNodeWrapper = styled((props) => (
 }));
 
 /**
-* A MUI component representing a component node.
-* @param {*} data - data for the React Flow component.
-*/
-function ComponentNode({ data, style }) {
-    return (
-        <ThemeProvider theme={theme}>
-            <Handle
-                type="target"
-                position="top"
-                style={{ background: 'none', border: 'none', top: '0' }}
-            />
-            <Handle
-                type="source"
-                position="bottom"
-                style={{ background: 'none', border: 'none', bottom: '0' }}
-            />
-            <ComponentNodeWrapper>
-                <Grid
-                    container
-                    justifyContent="center"
-                    style={{
-                        height: '100%',
-                        minHeight: data.minHeight,
-                    }}
-                >
-                    <Grid item xs={9} style={{height: 'fit-content'}}>
-                        <Link to={`/component/${data.label}`}>
-                            {data.label}
-                        </Link>
-                        <br />{data.ctype}
-                        {data.version != null && <span><br />{data.version}</span>}
-                        {/* <br />pushing
-                        <br />a whole bunch
-                        <br />of extra stuff
-                        <br />to explore spacing */}
-                        {/* <br />
-                        {propertiesVisible ? <div><p>hey</p></div> : ''}
-                        {data.shownProperties ? data.shownProperties.map(([propertyName, values, unit]) => (
-                            <div key={propertyName}>
-                                <p>
-                                    <u>{propertyName}:</u> {values.join(', ')} {unit}
-                                </p>
-                            </div>
-                        ))
-                            : ''} */}
-                        {/* </Typography> */}
-                    </Grid>
-                    {/* <Grid item>
-                        <ExpandConnectionsButton
-                            onClick={() => {
-                                expandConnections(data.name, time.current);
-                            }
-                            }
-                        />
-                    </Grid> */}
-                </Grid>
-            </ComponentNodeWrapper>
-        </ThemeProvider>
-    )
-}
-
-const nodeTypes = { component: ComponentNode };
-
-/**
  * ELK graph used for positioning nodes
  * See https://github.com/kieler/elkjs
  */
@@ -181,9 +121,9 @@ const elk = new ELK();
 const elkOptions = {
     'elk.algorithm': 'layered',
     'elk.layered.spacing.nodeNodeBetweenLayers': '50',
-    'elk.spacing.nodeNode': '50',
+    'elk.spacing.nodeNode': '10',
     'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-    'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+    'elk.layered.nodePlacement.bk.fixedAlignment': 'LEFTDOWN',
 };
 
 const getLayoutedElements = (nodes, edges, options = {}, sizes = {}) => {
@@ -425,6 +365,7 @@ function NewConnectionsPanel() {
             } else if (parent) {
                 parent.children = [child];
                 parent.layoutOptions = {
+                    ...parent.layoutOptions,
                     "elk.padding": "[left=10, top=50, right=10, bottom=10]",
                     "elk.spacing.nodeNode": "10",
                 }
@@ -437,9 +378,18 @@ function NewConnectionsPanel() {
                 data: { label: comp.name, ctype: comp.ctype, version: comp.version },
                 type: 'component',
                 position,
+                layoutOptions: {},
+                level: comp.level,
             }
+            // if (comp.level === Math.max(...allComponents.map(c => c.level))) {
+            //     nodeData.layoutOptions = {
+            //         ...nodeData.layoutOptions,
+            //         'elk.layered.layering.layerConstraint': 'LAST_SEPARATE',
+            //     }
+            // }
             if (comp.id === component.id) {
                 nodeData.layoutOptions = {
+                    ...nodeData.layoutOptions,
                     'elk.alignment': "CENTER"
                 }
             }
@@ -509,6 +459,117 @@ function NewConnectionsPanel() {
     useEffect(() => {
         isMounted.current = true;
     }, [])
+
+    /**
+     * Expand the connections of a node
+     */
+    const expandConnections = async function (name, time) {
+        return new Promise((resolve) => {
+            expandNodes(name, time).then(
+                (addedNodes) => {
+                    // Resizing and re-positioning nodes is done after the
+                    // promise is resolved, because we need to wait for React Flow to finish
+                    // its calculations first. (this still doesn't work perfecty!)
+                    for (var i = 0; i < addedNodes.length; i++) {
+                        // if one of the added components is a parent node
+                        if (isParentNode.current[addedNodes[i].name]) {
+                            setAddedParent(addedNodes[i].name);
+                        }
+                    }
+                    if (isParentNode.current[name]) {
+                        if (componentRef.current.name === name) {
+                            setAddedParent(name);
+                        }
+                        // update state if expanded node is a supercomponent
+                        else {
+                            setExpandedSupercomponent(name);
+                        }
+                    }
+                    resolve(addedNodes);
+                }
+            );
+        })
+    }
+
+    /**
+    * A MUI component representing a component node.
+    * @param {*} data - data for the React Flow component.
+    */
+    const ComponentNode = function ({ data, style }) {
+        return (
+            <ThemeProvider theme={theme}>
+                <Handle
+                    type="target"
+                    position="top"
+                    style={{ background: 'none', border: 'none', top: '0' }}
+                />
+                <Handle
+                    type="source"
+                    position="bottom"
+                    style={{ background: 'none', border: 'none', bottom: '0' }}
+                />
+                <ComponentNodeWrapper>
+                    <Grid
+                        container
+                        justifyContent="center"
+                        style={{
+                            height: '100%',
+                            minHeight: data.minHeight,
+                        }}
+                    >
+                        <Grid item xs={10} style={{height: 'fit-content'}}>
+                            <Link to={`/component/${data.label}`}>
+                                {data.label}
+                            </Link>
+                            <br />{data.ctype}
+                            {data.version != null && <span><br />{data.version}</span>}
+                            {/* <br />pushing
+                            <br />a whole bunch
+                            <br />of extra stuff
+                            <br />to explore spacing */}
+                            {/* <br />
+                            {propertiesVisible ? <div><p>hey</p></div> : ''}
+                            {data.shownProperties ? data.shownProperties.map(([propertyName, values, unit]) => (
+                                <div key={propertyName}>
+                                    <p>
+                                        <u>{propertyName}:</u> {values.join(', ')} {unit}
+                                    </p>
+                                </div>
+                            ))
+                                : ''} */}
+                            {/* </Typography> */}
+                        </Grid>
+                        <Fab
+                            aria-label="expand"
+                            size="small"
+                            sx={{
+                                position: 'absolute',
+                                top: 0,
+                                right: 0,
+                                // color: 'primary.main',
+                                background: 'none',
+                                boxShadow: 'none',
+                                maxWidth: '30px',
+                                minWidth: '30px',
+                                maxHeight: '30px',
+                                minHeight: '30px',
+                                '&:hover': {
+                                    background: 'none',
+                                }
+                            }}
+                            onClick={() => {
+                                expandConnections(data.name, enteredTime.current);
+                            }}
+                        >
+                            <ExpandMoreIcon />
+                        </Fab>
+                    </Grid>
+                </ComponentNodeWrapper>
+            </ThemeProvider>
+        )
+    }
+
+    const nodeTypes = useMemo(() => ({ component: ComponentNode }), []);
 
     return (
         <>

@@ -151,6 +151,10 @@ function Header() {
                             name: 'Component Versions',
                             link: `/list/component-versions`
                         },
+                        {
+                            name: 'Component Sequences',
+                            link: `/list/component-sequences`,
+                        },
                     ]}
                 />
 

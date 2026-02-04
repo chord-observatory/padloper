@@ -5,7 +5,7 @@ Classes for manipulating components, component types and component versions.
 """
 import time
 import _global as g
-from gremlin_python.process.traversal import Order, P, TextP, T, Direction
+from gremlin_python.process.traversal import Order, P, T, Direction, Operator
 from gremlin_python.process.graph_traversal import __, constant
 
 from _exceptions import *
@@ -305,16 +305,31 @@ class Component(Vertex):
         :rtype: {'nodes': [], 'edges': []}
         """
         # get nodes and edges
-        query = g.t.V(self.id()).repeat(
-            __.bothE("rel_connection", "rel_subcomponent")\
-                .has("time_added", P.lt(time))\
-                .or_(__.has("time_disabled", P.lt(0)),
-                    __.has("time_disabled", P.gt(time)))\
-                .bothV().dedup()
-            ).times(depth).emit().path().by(__.elementMap())
+        query = g.t.withSack(0).V(self.id()).repeat(
+            __.union(
+                __.bothE("rel_connection")
+                    .has("time_added", P.lt(time))
+                    .or_(__.has("time_disabled", P.lt(0)),
+                         __.has("time_disabled", P.gt(time)))
+                    .sack(Operator.assign).by(__.constant(0)).otherV(),
+                __.outE("rel_subcomponent")
+                    .filter_(__.sack().is_(P.within(0, 1)))
+                    .has("time_added", P.lt(time))
+                    .or_(__.has("time_disabled", P.lt(0)),
+                         __.has("time_disabled", P.gt(time)))
+                    .sack(Operator.assign).by(__.constant(1)).inV(),
+                __.inE("rel_subcomponent")
+                    .filter_(__.sack().is_(P.within(0, -1)))
+                    .has("time_added", P.lt(time))
+                    .or_(__.has("time_disabled", P.lt(0)),
+                         __.has("time_disabled", P.gt(time)))
+                    .sack(Operator.assign).by(__.constant(-1)).outV()
+            ).simplePath()
+        ).times(depth).emit().path().by(__.elementMap())
+
         paths = query.toList()
 
-        if not paths:
+        if depth < 1 or not paths:
             # this node isn't connected to anything
             query = g.t.V(self.id()).path().by(__.elementMap())
             paths = query.toList()
@@ -346,9 +361,10 @@ class Component(Vertex):
                         edgeIds.append(element['id'])
 
         # get component types
-        query = g.t.V(*nodeIds).outE("rel_component_type").inV().elementMap()
         ctypes = []
-        for element in query.toList():
+        for nodeId in nodeIds:
+            query = g.t.V(nodeId).outE("rel_component_type").inV().elementMap()
+            element = (els := query.toList()) and els[0] or {}
             ctypes.append(element.get('name'))
 
         # get component versions

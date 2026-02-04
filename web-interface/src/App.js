@@ -1,6 +1,7 @@
 import ComponentList from './ComponentList.js';
 import ComponentTypeList from './ComponentTypeList.js';
 import ComponentVersionList from './ComponentVersionList.js';
+import ComponentSequenceList from './ComponentSequenceList.js';
 import PropertyTypeList from './PropertyTypeList';
 import ComponentPage from './ComponentPage.js';
 import ComponentConnectionVisualizer from './ComponentConnectionVisualizer.js';
@@ -8,7 +9,7 @@ import NewVisualizer from './NewVisualizer.js';
 import FlagTypeList from './FlagTypeList.js'
 import FlagList from './FlagList.js';
 import Header from './Header.js';
-// import Barcode from './Barcode.js';
+import Barcode from './Barcode.js';
 
 import { ReactFlowProvider } from 'reactflow';
 
@@ -179,12 +180,32 @@ function App() {
           {/**
            * Barcode scanning to find, connect, and add components
            */}
-          {/* <Route
+          <Route
             exact={true}
             path="/barcode"
             element={
               <Barcode />
             }
+          />
+
+          {/**
+           * Component sequence list
+           */}
+          <Route
+            exact={true}
+            path="/list/component-sequences"
+            element={
+              <ComponentSequenceList />
+            }
+          />
+
+          {/**
+           * Route for specific component
+           */}
+          {/* <Route
+            exact={true}
+            path="/component-sequence/:name"
+            element={}
           /> */}
 
         </Routes>

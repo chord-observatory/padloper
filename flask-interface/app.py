@@ -2333,3 +2333,80 @@ def get_user_group_list():
 @app.route("/api/get_all_permissions", methods=["GET"])
 def get_all_permissions():
     return {'result': list(p.permissions_set)}
+
+
+@app.route("/api/component_sequence_list", methods=["GET"])
+def get_component_sequence_list():
+    component_range = escape(request.args.get('range'))
+    order_by = escape(request.args.get('orderBy'))
+    order_direction = escape(request.args.get('orderDirection'))
+    # name_substring = escape(request.args.get('nameSubstring'))
+
+    range_bounds = tuple(map(int, component_range.split(';')))
+
+    # make sure that the range bounds only consist of a min/max, and that
+    # the order direction is either asc or desc.
+    assert len(range_bounds) == 2
+    assert order_direction in {'asc', 'desc'}
+
+    sequences = p.ComponentSequence.get_list(
+        range=range_bounds,
+        order_by=[(order_by, order_direction)],
+        # filters=[{"name": TextP.containing(name_substring)}]
+    )
+
+    return {"result": [s.as_dict() for s in sequences]}
+
+
+@app.route("/api/set_sequence", methods=['POST'])
+def set_sequence():
+    try:
+        name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        prefix = escape(request.args.get('prefix'))
+        seq_size = int(request.args.get('seq_size', 1))
+        next_seq = int(request.args.get('next_seq', 0))
+
+        # Query the database and return the ComponentType instance based on the
+        # component type name.
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        component = p.ComponentSequence(
+            name=name, component_type=component_type, prefix=prefix,
+            seq_size=seq_size, next_seq=next_seq,
+        )
+        component.add(permissions=session.get('perms', []))
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/update_sequence/<name>", methods=['POST'])
+def update_sequence(name):
+    try:
+        new_name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        prefix = escape(request.args.get('prefix'))
+        seq_size = int(request.args.get('seq_size', 1))
+        next_seq = int(request.args.get('next_seq', 0))
+
+        # query the database to get the existing sequence and component type
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        vals = {}
+        if new_name:
+            vals['name'] = new_name
+        if component_type:
+            vals['component_type'] = component_type
+        if prefix:
+            vals['prefix'] = prefix
+        if seq_size:
+            vals['seq_size'] = seq_size
+        if next_seq:
+            vals['next_seq'] = next_seq
+
+        sequence.update(**vals)
+    except:
+        raise
+    pass
