@@ -463,33 +463,33 @@ function NewConnectionsPanel() {
     /**
      * Expand the connections of a node
      */
-    const expandConnections = async function (name, time) {
-        return new Promise((resolve) => {
-            expandNodes(name, time).then(
-                (addedNodes) => {
-                    // Resizing and re-positioning nodes is done after the
-                    // promise is resolved, because we need to wait for React Flow to finish
-                    // its calculations first. (this still doesn't work perfecty!)
-                    for (var i = 0; i < addedNodes.length; i++) {
-                        // if one of the added components is a parent node
-                        if (isParentNode.current[addedNodes[i].name]) {
-                            setAddedParent(addedNodes[i].name);
-                        }
-                    }
-                    if (isParentNode.current[name]) {
-                        if (componentRef.current.name === name) {
-                            setAddedParent(name);
-                        }
-                        // update state if expanded node is a supercomponent
-                        else {
-                            setExpandedSupercomponent(name);
-                        }
-                    }
-                    resolve(addedNodes);
-                }
-            );
-        })
-    }
+    // const expandConnections = async function (name, time) {
+    //     return new Promise((resolve) => {
+    //         expandNodes(name, time).then(
+    //             (addedNodes) => {
+    //                 // Resizing and re-positioning nodes is done after the
+    //                 // promise is resolved, because we need to wait for React Flow to finish
+    //                 // its calculations first. (this still doesn't work perfecty!)
+    //                 for (var i = 0; i < addedNodes.length; i++) {
+    //                     // if one of the added components is a parent node
+    //                     if (isParentNode.current[addedNodes[i].name]) {
+    //                         setAddedParent(addedNodes[i].name);
+    //                     }
+    //                 }
+    //                 if (isParentNode.current[name]) {
+    //                     if (componentRef.current.name === name) {
+    //                         setAddedParent(name);
+    //                     }
+    //                     // update state if expanded node is a supercomponent
+    //                     else {
+    //                         setExpandedSupercomponent(name);
+    //                     }
+    //                 }
+    //                 resolve(addedNodes);
+    //             }
+    //         );
+    //     })
+    // }
 
     /**
     * A MUI component representing a component node.
@@ -539,7 +539,7 @@ function NewConnectionsPanel() {
                                 : ''} */}
                             {/* </Typography> */}
                         </Grid>
-                        <Fab
+                        {/* <Fab
                             aria-label="expand"
                             size="small"
                             sx={{
@@ -562,7 +562,7 @@ function NewConnectionsPanel() {
                             }}
                         >
                             <ExpandMoreIcon />
-                        </Fab>
+                        </Fab> */}
                     </Grid>
                 </ComponentNodeWrapper>
             </ThemeProvider>
