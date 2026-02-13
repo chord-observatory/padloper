@@ -1,0 +1,24 @@
+FROM node:18-alpine
+
+WORKDIR /web-interface
+
+# Install dependencies first (leverage Docker layer cache)
+COPY ./web-interface/package.json /web-interface/
+# If a lockfile exists, copy it too for deterministic installs
+# Install deps deterministically when a lockfile is present
+# RUN if [ -f package-lock.json ]; then \
+#       npm ci --no-audit --no-fund; \
+#     else \
+#       npm install --no-audit --no-fund; \
+#     fi
+
+# Build-time env for CRA
+ARG REACT_APP_GITHUB_CLIENT_ID
+ARG REACT_APP_BASE_PATH
+ENV REACT_APP_GITHUB_CLIENT_ID=${REACT_APP_GITHUB_CLIENT_ID}
+ENV REACT_APP_BASE_PATH=${REACT_APP_BASE_PATH:-/padloper}
+
+RUN npm install
+
+EXPOSE 4301
+CMD [ "npm", "start" ]

@@ -28,7 +28,7 @@ services:
       padloper-network:
         ipv4_address: 172.20.0.10
   web-interface:
-    build: 
+    build:
       context: .
       dockerfile: web-interface/Dockerfile.web_interface
       args:
@@ -43,7 +43,7 @@ services:
         ipv4_address: 172.20.0.21
 
   oauth-proxy-server:
-    build: 
+    build:
       context: .
       dockerfile: oauth-proxy-server/Dockerfile.oauth
     container_name: oauth-proxy-server
@@ -74,7 +74,7 @@ services:
         ipv4_address: 172.20.0.23
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.10.2
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.8
     container_name: elasticsearch
     platform: linux/amd64
     environment:

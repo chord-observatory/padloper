@@ -56,12 +56,12 @@ const Root = styled(Paper)(({ theme }) => ({
 }));
 
 /**
- * A styled Paper component that wraps around the cool big name 
+ * A styled Paper component that wraps around the cool big name
  * of the component.
  */
 const ComponentNameWrapper = styled((props) => (
     <Paper
-        elevation={1} 
+        elevation={1}
         {...props}
     />
 ))(({ theme }) => ({
@@ -81,28 +81,28 @@ const ComponentNameWrapper = styled((props) => (
  * A styling for an MUI Accordion component.
  */
 const Accordion = styled((props) => (
-    <MuiAccordion 
-        disableGutters 
-        elevation={0} 
+    <MuiAccordion
+        disableGutters
+        elevation={0}
         defaultExpanded
-        {...props} 
+        {...props}
     />
 ))(({ theme }) => ({
     borderBottom: `1px solid ${theme.palette.divider}`,
-    
+
 }));
 
 /**
  * An even more styled Accordion component.
  */
 const EntryAccordion = styled((props) => (
-    <Accordion 
+    <Accordion
         defaultExpanded={false}
         {...props}
     />
 ))(({ theme }) => ({
     borderBottom: `0`,
-    
+
 }));
 
 /**
@@ -111,7 +111,7 @@ const EntryAccordion = styled((props) => (
 const AccordionSummary = styled((props) => (
     <MuiAccordionSummary
         expandIcon={
-            <ExpandMoreIcon 
+            <ExpandMoreIcon
                 sx={{
                     color: "rgba(0,0,0, 0.4)",
                     padding: "4px",
@@ -152,7 +152,7 @@ const EntryAccordionSummary = styled(AccordionSummary)(({ theme }) => ({
     '& .MuiAccordionSummary-content': {
       marginLeft: theme.spacing(1),
     },
-    
+
 }));
 
 const EntryAccordionSummarySubcomponent = styled(AccordionSummarySubcomponents)(({ theme }) => ({
@@ -161,25 +161,25 @@ const EntryAccordionSummarySubcomponent = styled(AccordionSummarySubcomponents)(
     '& .MuiAccordionSummary-content': {
       marginLeft: theme.spacing(1),
     },
-    
+
 }));
 
 const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
     padding: theme.spacing(2),
     borderTop: '1px solid rgba(0, 0, 0, .125)',
-    
+
 }));
 
 const EntryAccordionDetails = styled(AccordionDetails)(({ theme }) => ({
     backgroundColor: 'rgba(0, 0, 0, .015)',
-    
+
 }));
 
 /**
  * A MUI component representing a button for adding a component's property or connection.
  */
 const AddButton = styled((props) => (
-    <Button 
+    <Button
         variant="outlined"
         size="small"
         style={{
@@ -197,11 +197,11 @@ const AddButton = styled((props) => (
  * A MUI component representing a button for ending a component's property or connection.
  */
 const EndButton = styled((props) => (
-    <Button 
+    <Button
     style={{
-        maxWidth: '40px', 
-        maxHeight: '30px', 
-        minWidth: '30px', 
+        maxWidth: '40px',
+        maxHeight: '30px',
+        minWidth: '30px',
         minHeight: '30px',
         marginRight:'5px'
     }}
@@ -210,18 +210,18 @@ const EndButton = styled((props) => (
         End
     </Button>
 ))(({ theme }) => ({
-    
+
 }))
 
 /*
 A MUI component representing a button for replacing a component's property or connection.
  */
 const ReplaceButton = styled((props) => (
-    <Button 
+    <Button
     style={{
-        maxWidth: '40px', 
-        maxHeight: '30px', 
-        minWidth: '30px', 
+        maxWidth: '40px',
+        maxHeight: '30px',
+        minWidth: '30px',
         minHeight: '30px',
         marginRight:'5px'
     }}
@@ -230,11 +230,11 @@ const ReplaceButton = styled((props) => (
         <EditIcon/>
     </Button>
 ))(({ theme }) => ({
-    
+
 }))
 
 /**
- * Custom MUI theme, see 
+ * Custom MUI theme, see
  * https://mui.com/customization/theming/#theme-configuration-variables
  */
 const theme = createTheme({
@@ -350,7 +350,7 @@ function ComponentPage() {
     }
 
     /**
-     * variable and toggle for reloading the page. 
+     * variable and toggle for reloading the page.
      * When toggled, reload everything
      */
     const [reloadBool, setReloadBool] = useState(false);
@@ -421,10 +421,10 @@ function ComponentPage() {
     /**
      * Set a property for the component.
      * @param {string} propertyType - the name of the property tyoe
-     * @param {int} time - the time at which to add the property 
+     * @param {int} time - the time at which to add the property
      * @param {string} uid - the ID of the user that is adding the property
-     * @param {string} comments - the comments associated with the property 
-     * @param {Array} values - an array connecting the values of the property. 
+     * @param {string} comments - the comments associated with the property
+     * @param {Array} values - an array connecting the values of the property.
      */
     async function setProperty(propertyType, time, uid, comments, values) {
 
@@ -457,9 +457,9 @@ function ComponentPage() {
 
     /**
      * End a property for the component.
-     * @param {int} time - the time at which to end the property 
+     * @param {int} time - the time at which to end the property
      * @param {string} uid - the ID of the user that is ending the property
-     * @param {string} comments - the comments associated with ending the property 
+     * @param {string} comments - the comments associated with ending the property
      */
     async function endProperty(time, uid, comments) {
 
@@ -480,7 +480,7 @@ function ComponentPage() {
                 toggleReload();
             }
             else {
-                console.log(data.error);
+                console.error(data.error);
                 seterrorEndPropertyMessage(JSON.parse(data.error));
             }
         })
@@ -492,11 +492,11 @@ function ComponentPage() {
 
     /**
      * Replace a property for the component.
-     * @param {string} propertyType - the property type to replace 
-     * @param {int} time - the time at which to add the property 
+     * @param {string} propertyType - the property type to replace
+     * @param {int} time - the time at which to add the property
      * @param {string} uid - the ID of the user that is adding the property
-     * @param {string} comments - the comments associated with the property 
-     * @param {Array} values - an array connecting the values of the property. 
+     * @param {string} comments - the comments associated with the property
+     * @param {Array} values - an array connecting the values of the property.
      */
     async function replaceProperty(propertyType,time, uid, comments, values) {
 
@@ -534,14 +534,14 @@ function ComponentPage() {
 
     /**
      * Add a connection to another component.
-     * @param {string} otherName - the name of the other component 
+     * @param {string} otherName - the name of the other component
      * for the connection
-     * @param {int} time - the time to make the connection at 
-     * @param {string} uid - the ID of the user that is making the connection 
-     * @param {string} comments - the comments associated with the connection 
+     * @param {int} time - the time to make the connection at
+     * @param {string} uid - the ID of the user that is making the connection
+     * @param {string} comments - the comments associated with the connection
      */
     async function addConnection(otherName, time, uid, comments) {
-        
+
         // build up the string to query the API
         let input = `/api/component_add_connection`;
         input += `?name1=${name}`;
@@ -564,12 +564,12 @@ function ComponentPage() {
 
     /**
      * End the connection to another component.
-     * @param {int} time - the time to end the connection at 
-     * @param {string} uid - the ID of the user that is ending the connection 
-     * @param {string} comments - the comments associated with ending the connection 
+     * @param {int} time - the time to end the connection at
+     * @param {string} uid - the ID of the user that is ending the connection
+     * @param {string} comments - the comments associated with ending the connection
      */
     async function endConnection(time, uid, comments) {
-        
+
         // build up the string to query the API
         let input = `/api/component_end_connection`;
         input += `?name1=${name}`;
@@ -587,7 +587,7 @@ function ComponentPage() {
                     toggleReload();
                 }
                 else {
-                    console.log(data.error);
+                    console.error(data.error);
                     setErrorEndConnectionMessage(JSON.parse(data.error));
                 }
                 resolve(data.result);
@@ -603,16 +603,16 @@ function ComponentPage() {
 
     /**
      * Replace the connection to another component.
-     * @param {int} startTime - the time to make the connection at 
+     * @param {int} startTime - the time to make the connection at
      * @param {int} endTime - the time to end the connection at
-     * @param {string} uid - the ID of the user that is making the connection 
-     * @param {string} comments - the comments associated with making the connection 
+     * @param {string} uid - the ID of the user that is making the connection
+     * @param {string} comments - the comments associated with making the connection
      * @param {int} oldStartTime - the start time of the old connection that will be replaced
-     * @param {bool} hasEnd - whether the connection has already ended, i.e., whether the 
+     * @param {bool} hasEnd - whether the connection has already ended, i.e., whether the
      *                      "endTime" value is actually valid
      */
     async function replaceConnection(startTime, endTime, uid, comments, oldStartTime, hasEnd) {
-        
+
         // build up the string to query the API
         let input = `/api/component_add_connection`;
         input += `?name1=${name}`;
@@ -625,9 +625,6 @@ function ComponentPage() {
         if (hasEnd) {       // need to include ending time of new connection
             input += `&end_time=${endTime}`;
         }
-
-        console.log("hasend", hasEnd);
-        console.log("endTime", endTime);
 
         return new Promise((resolve, reject) => {
             fetch(withBase(input), {method: 'POST'})
@@ -655,7 +652,7 @@ function ComponentPage() {
      * @param {string} otherName - the name of the other component, which is a subcomponent.
      */
     async function addSubcomponent(otherName) {
-        
+
         // build up the string to query the API
         let input = `/api/component_add_subcomponent`;
         input += `?name1=${name}`;
@@ -715,18 +712,18 @@ function ComponentPage() {
     if (component) {
 
         let properties_add_panel_content = (open_properties_add_panel) ? (
-            <ComponentPropertyAddPanel 
-                theme={theme} 
+            <ComponentPropertyAddPanel
+                theme={theme}
                 onClose={() => {setOpenPropertiesAddPanel(false);
                                 setErrorPropertyMessage(null)}}
                 onSet={setProperty}
                 errorPropertyMessage={errorPropertyMessage}
             />
         ) : <></>;
-        
+
         let properties_end_panel_content = (open_properties_end_panel) ? (
-            <ComponentPropertyEndPanel 
-                theme={theme} 
+            <ComponentPropertyEndPanel
+                theme={theme}
                 onClose={() => setOpenPropertiesEndPanel(false)}
                 onSet={endProperty}
                 errorMessage={errorEndPropertyMessage}
@@ -734,8 +731,8 @@ function ComponentPage() {
         ) : <></>;
 
         let properties_edit_panel_content = (open_properties_replace_panel) ? (
-            <ComponentPropertyReplacePanel 
-                theme={theme} 
+            <ComponentPropertyReplacePanel
+                theme={theme}
                 onClose={() => setOpenPropertiesReplacePanel(false)}
                 onSet={replaceProperty}
             />
@@ -751,7 +748,7 @@ function ComponentPage() {
                                 <Timestamp unixTime={prop.start.time} />
                                 {prop.end.time <= Number.MAX_SAFE_INTEGER ? (
                                     <>
-                                        <div>-</div> 
+                                        <div>-</div>
                                         <Timestamp unixTime={prop.end.time} />
                                     </>
                                 ) : ''}
@@ -764,7 +761,7 @@ function ComponentPage() {
                                     {prop.type.name} = { '[ ' +
                                         prop.values.map(
                                             el => el + ` ${
-                                            (prop.type.units === undefined) ? 
+                                            (prop.type.units === undefined) ?
                                                 '' : prop.type.units
                                             }`
                                         ).join(", ") + ' ]'
@@ -775,7 +772,7 @@ function ComponentPage() {
 
                         <EntryAccordionDetails>
                             <Stack spacing={1}>
-                                <Stack 
+                                <Stack
                                 direction='row'
                                 justifyContent='space-between'
                                 alignItems='center'
@@ -794,9 +791,9 @@ function ComponentPage() {
                         ""
                         :
                         <>
-                        <EndButton 
+                        <EndButton
                             onClick={
-                                () => 
+                                () =>
                                 {
                                     setOpenPropertiesEndPanel(true)
                                     setPropType(prop.type.name)
@@ -804,9 +801,9 @@ function ComponentPage() {
                                 }
                             }
                             />
-                        <ReplaceButton 
+                        <ReplaceButton
                             onClick={
-                                () => 
+                                () =>
                                 {
                                     setOpenPropertiesReplacePanel(true)
                                     setactiveindexpropertyReplace(index)
@@ -825,7 +822,7 @@ function ComponentPage() {
                                     </Stack>
                             </Stack>
                                {
-                                    prop.end.time <= 
+                                    prop.end.time <=
                                     Number.MAX_SAFE_INTEGER ?
                                     <ComponentEvent
                                         name="End"
@@ -838,19 +835,19 @@ function ComponentPage() {
                                 }
                             </Stack>
                         </EntryAccordionDetails>
-                        {activeIndexPropertyEnd === index 
+                        {activeIndexPropertyEnd === index
                         ?
                          properties_end_panel_content
                         :
                         ''}
-                        {activeindexpropertyReplace === index 
+                        {activeindexpropertyReplace === index
                         ?
 
                         (open_properties_replace_panel) ? (
-                            <ComponentPropertyReplacePanel 
-                                theme={theme} 
+                            <ComponentPropertyReplacePanel
+                                theme={theme}
                                 onClose={() => {
-                                    setErrorReplacePropertyMessage(null); 
+                                    setErrorReplacePropertyMessage(null);
                                     setOpenPropertiesReplacePanel(false)
                                 }}
                                 onSet={replaceProperty}
@@ -868,8 +865,8 @@ function ComponentPage() {
         )
 
         let connections_add_panel_content = (open_connections_add_panel) ? (
-            <ComponentConnectionAddPanel 
-                theme={theme} 
+            <ComponentConnectionAddPanel
+                theme={theme}
                 onClose={() => {setOpenConnectionsAddPanel(false); setErrorConnectionMessage(null) }}
                 onSet={addConnection}
                 name={name}
@@ -878,8 +875,8 @@ function ComponentPage() {
         ) : <></>;
 
         let connections_end_panel_content = (open_connections_end_panel) ? (
-            <ComponentConnectionEndPanel 
-                theme={theme} 
+            <ComponentConnectionEndPanel
+                theme={theme}
                 onClose={() => {
                     setOpenConnectionsEndPanel(false);
                     setErrorEndConnectionMessage(null);
@@ -892,8 +889,8 @@ function ComponentPage() {
         ) : <></>;
 
         // let connections_replace_panel_content = (open_connections_replace_panel) ? (
-        //     <ComponentConnectionReplacePanel 
-        //         theme={theme} 
+        //     <ComponentConnectionReplacePanel
+        //         theme={theme}
         //         onClose={() => setOpenConnectionsReplacePanel(false)}
         //         onSet={replaceConnection}
         //         uid={uid}
@@ -911,7 +908,7 @@ function ComponentPage() {
                                 <Timestamp unixTime={conn.start.time} />
                                 {conn.end.time <= Number.MAX_SAFE_INTEGER ? (
                                     <>
-                                        <div>—</div> 
+                                        <div>—</div>
                                         <Timestamp unixTime={conn.end.time} />
                                     </>
                                 ) : ''}
@@ -930,9 +927,9 @@ function ComponentPage() {
                                         {conn.name}
                                     </Link>}
                                 </Typography>
-                                
+
                             </Stack>
-                        
+
                         </EntryAccordionSummary>
                         <EntryAccordionDetails>
                             <Stack spacing={1}>
@@ -963,11 +960,11 @@ function ComponentPage() {
                                         }
                                         />
                                     }
-                                    
+
                         <>
-                        <ReplaceButton 
+                        <ReplaceButton
                         onClick={
-                                () => 
+                                () =>
                                 {
                                     setOtherName(conn.name)
                                     setOpenConnectionsReplacePanel(true)
@@ -982,13 +979,13 @@ function ComponentPage() {
                         time={conn.start.time}
                         toggleReload={toggleReload}
                         />
-                        
+
                             </>
-                            
+
                             </Stack>
                             </Stack>
                                 {
-                                    conn.end.time <= 
+                                    conn.end.time <=
                                     Number.MAX_SAFE_INTEGER ?
                                     <ComponentEvent
                                         name="End"
@@ -1001,17 +998,17 @@ function ComponentPage() {
                                 }
                             </Stack>
                         </EntryAccordionDetails>
-                        {activeIndexConnectionEnd === index 
-                        ? 
-                        connections_end_panel_content 
+                        {activeIndexConnectionEnd === index
+                        ?
+                        connections_end_panel_content
                         :
                         ''}
-                         {activeIndexConnectionReplace === index 
+                         {activeIndexConnectionReplace === index
                         ?
                         //  connections_replace_panel_content
                         (open_connections_replace_panel) ? (
-                            <ComponentConnectionReplacePanel 
-                                theme={theme} 
+                            <ComponentConnectionReplacePanel
+                                theme={theme}
                                 onClose={() => setOpenConnectionsReplacePanel(false)}
                                 onSet={replaceConnection}
                                 uid={uid}
@@ -1027,8 +1024,8 @@ function ComponentPage() {
         )
 
     let subcomponent_add_panel_content = (open_subcomponents_add_panel) ? (
-    <ComponentSubcomponentAddPanel 
-        theme={theme} 
+    <ComponentSubcomponentAddPanel
+        theme={theme}
         onClose={() => {setOpenSubcomponentsAddPanel(false); setErrorSubcomponentMessage(null)}}
         onSet={addSubcomponent}
         name={name}
@@ -1047,7 +1044,7 @@ function ComponentPage() {
                                 <Timestamp unixTime={flag.start_time} />
                                 {flag.end_time <= Number.MAX_SAFE_INTEGER ? (
                                     <>
-                                        <div>-</div> 
+                                        <div>-</div>
                                         <Timestamp unixTime={flag.end_time} />
                                     </>
                                 ) : ''}
@@ -1085,7 +1082,7 @@ function ComponentPage() {
 
                         <EntryAccordionDetails>
                             <Stack spacing={1}>
-                                <Stack 
+                                <Stack
                                 direction='row'
                                 justifyContent='space-between'
                                 alignItems='center'
@@ -1101,7 +1098,7 @@ function ComponentPage() {
                             </Stack>
                             </Stack>
                                {
-                                    flag.end_time <= 
+                                    flag.end_time <=
                                     Number.MAX_SAFE_INTEGER ?
                                     <ComponentEvent
                                         name="End"
@@ -1125,8 +1122,8 @@ function ComponentPage() {
                 {component.subcomps.map((subcomponent,index) => (
                     <EntryAccordion key={index}>
                         <EntryAccordionSummarySubcomponent>
-                            <Stack 
-                            spacing={2} 
+                            <Stack
+                            spacing={2}
                             direction="row"
                             >
                                 <SettingsInputComponentIcon/>
@@ -1135,21 +1132,21 @@ function ComponentPage() {
                                     style={{
                                         marginLeft: theme.spacing(4),
                                         display:'flex',
-                                        alignItems:'center'                              
+                                        alignItems:'center'
                                     }}
                                 >
                                     <Stack>
                                     {
                                         <Link to={`/component/${subcomponent.name}`}>
-                                            {subcomponent.name} 
+                                            {subcomponent.name}
                                     </Link>
-    }                               
+    }
                                     </Stack>
                                     <Stack style={{
                                         marginLeft: theme.spacing(2),
                                         marginRight: theme.spacing(2)
                                     }}>
-                                <EastIcon/> 
+                                <EastIcon/>
                                     </Stack>
                                     <Stack>
                                 {name}
@@ -1160,7 +1157,7 @@ function ComponentPage() {
                             <Stack style={{
                                         marginLeft: theme.spacing(2)
                                     }}
-                            > 
+                            >
                             <ComponentSubcomponentDisableButton
                             name={name}
                             subComponentName={subcomponent.name}
@@ -1180,22 +1177,22 @@ function ComponentPage() {
                                     style={{
                                         marginLeft: theme.spacing(4),
                                         display:'flex',
-                                        alignItems:'center'                              
+                                        alignItems:'center'
                                     }}
                                 >
                                     <Stack>
                                     {
                                         <Link to={`/component/${subcomponent.name}`}>
-                                            {subcomponent.name} 
+                                            {subcomponent.name}
                                     </Link>
-    }                               
+    }
                                     </Stack>
                                     <Stack style={{
                                         marginLeft: theme.spacing(2),
                                         marginRight: theme.spacing(2)
                                     }}>
-                                <KeyboardBackspaceIcon/> 
-                        
+                                <KeyboardBackspaceIcon/>
+
                                     </Stack>
                                     <Stack>
                                 {name}
@@ -1241,8 +1238,8 @@ function ComponentPage() {
                                 <Typography color={'rgb(128,128,128)'}>
                                     Date added
                                 </Typography>
-                                <Timestamp 
-                                    unixTime={component.time_added} 
+                                <Timestamp
+                                    unixTime={component.time_added}
                                     variant="h5"
                                 />
                             </Stack>
@@ -1259,13 +1256,13 @@ function ComponentPage() {
                     <AccordionSummary
                         expandonClick={toggleOpenPropertiesAccordion}
                     >
-                        
+
                         <Typography style={{ flex: 1 }} align='left'>
                             Properties
                         </Typography>
-                           
 
-                        <AddButton 
+
+                        <AddButton
                             onClick={
                                 () => {setOpenPropertiesAddPanel(true)}
                             }
@@ -1274,9 +1271,9 @@ function ComponentPage() {
                     </AccordionSummary>
                     <AccordionDetails>
                         {properties_add_panel_content}
-                        
+
                         {properties_content}
-                        
+
                     </AccordionDetails>
                 </Accordion>
 
@@ -1293,14 +1290,14 @@ function ComponentPage() {
                             Connections
                         </Typography>
 
-                        <AddButton 
+                        <AddButton
                             onClick={
                                 () => {setOpenConnectionsAddPanel(true)}
                             }
                         />
-                    
+
                     </AccordionSummary>
-                    
+
                     <AccordionDetails>
                         {connections_add_panel_content}
 
@@ -1322,7 +1319,7 @@ function ComponentPage() {
                            <Typography style={{ flex: 1 }} align='left'>
                             Subcomponents
                         </Typography>
-                        <AddButton 
+                        <AddButton
                             onClick={
                                 () => {setOpenSubcomponentsAddPanel(true)}
                             }
@@ -1333,7 +1330,7 @@ function ComponentPage() {
 
                         {subcomponents_content}
 
-                    </AccordionDetails>       
+                    </AccordionDetails>
                 </Accordion>
 
                     <Accordion
@@ -1352,7 +1349,7 @@ function ComponentPage() {
                         <AccordionDetails>
                         {flags_content}
 
-                    </AccordionDetails>       
+                    </AccordionDetails>
                 </Accordion>
             </ThemeProvider>
         )

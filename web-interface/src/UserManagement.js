@@ -32,12 +32,11 @@ function UserManagementPage() {
     }, [selectedUser]);
 
     const fetchUsers = () => {
-       
+
         let input = '/api/get_user_list'
         fetch(withBase(input))
             .then(requireOkJson)
             .then(data => {
-                console.log(data)
                 setUsers(data.result);
             })
             .catch(err => {
@@ -48,7 +47,7 @@ function UserManagementPage() {
 
     const fetchUserGroups = () => {
         // Mocking user groups data for demonstration
-       
+
         let input = '/api/get_user_group_list'
         fetch(withBase(input))
             .then(requireOkJson)
@@ -81,7 +80,6 @@ function UserManagementPage() {
         fetch(withBase(input))
             .then(requireOkJson)
             .then(data => {
-                console.log(data);
                 setUserGroupAssociations(data.result);
             })
             .catch(err => {
@@ -104,11 +102,10 @@ function UserManagementPage() {
             const formData = new FormData();
             formData.append('user', selectedUser.name);
             formData.append('group', selectedUserGroups.map(obj => obj.name).join(";"));
-            console.log(formData)
-             const requestOptions = {
-                method: 'POST', 
+            const requestOptions = {
+                method: 'POST',
                 body: formData
-              };
+            };
             fetch(withBase(input), requestOptions)
               .then(requireOkJson)
               .then(data => {

@@ -17,11 +17,11 @@ import { withBase, requireOkJson } from './paths.js';
 A MUI component representing a button for disabling.
  */
 const DisableButton = styled((props) => (
-    <Button 
+    <Button
     style={{
-        maxWidth: '40px', 
-        maxHeight: '30px', 
-        minWidth: '30px', 
+        maxWidth: '40px',
+        maxHeight: '30px',
+        minWidth: '30px',
         minHeight: '30px',
     }}
     {...props}
@@ -29,7 +29,7 @@ const DisableButton = styled((props) => (
         <DeleteIcon/>
     </Button>
 ))(({ theme }) => ({
-    
+
 }))
 
 
@@ -64,8 +64,8 @@ const DisableButton = styled((props) => (
     /**
      * Disable a connection.
      * @param {string} otherComponentName - the name of the other component.
-     * @returns 
-     */    
+     * @returns
+     */
     async function handleSubmit(otherComponentName) {
         setLoading(true)
         // build up the string to query the API
@@ -78,7 +78,6 @@ const DisableButton = styled((props) => (
             fetch(withBase(input))
               .then(requireOkJson)
               .then((data) => {
-                console.log(data);
                 if (data.result) {
                   toggleReload();
                   handleClose();
@@ -97,12 +96,12 @@ const DisableButton = styled((props) => (
               });
             });
           }
-  
+
   return (
     <>
         <DisableButton onClick={handleClickOpen}/>
-      <Dialog 
-      open={open} 
+      <Dialog
+      open={open}
       onClose={handleClose}
       aria-labelledby="alert-dialog-title"
       aria-describedby="alert-dialog-description"
@@ -114,7 +113,7 @@ const DisableButton = styled((props) => (
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleClose}>Cancel</Button>           
+          <Button onClick={handleClose}>Cancel</Button>
             <Button onClick={()=>{handleSubmit(otherComponentName)}}>
               {loading ? <CircularProgress
                             size={24}

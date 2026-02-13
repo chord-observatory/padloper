@@ -60,7 +60,7 @@ def read_filters(filters):
         return None
 
 def parse_filters(filtstr, attrs, funcs):
-    """Return a list of dictionaries as specified by the `filters` parameter of 
+    """Return a list of dictionaries as specified by the `filters` parameter of
     Vertex.get_list()"""
     ret = []
     if filtstr is not None and filtstr != "":
@@ -78,9 +78,9 @@ def parse_filters(filtstr, attrs, funcs):
 # @app.route("/api/s_id/<id>")
 # def get_component_by_id(id):
 #     return str(Component.from_id(escape(id)))
-    
+
 def set_perms(username):
-    """ Get user permissions from the database, and set as a sessions variable. 
+    """ Get user permissions from the database, and set as a sessions variable.
     """
     # Cache user in session and compute permissions from DB
     session['user'] = username
@@ -128,7 +128,7 @@ def login():
 
         if not username or not access_token:
             return ({'error': 'Username and access token are required'}), 400
-        
+
         headers = {'Authorization': 'Bearer ' + access_token}
         response = requests.get(PROXY_SERVER_URL + 'getUserData', headers=headers)
 
@@ -184,7 +184,7 @@ def login():
         print(e)
 
         return {'error': json.dumps(e, default=str)}, 401
-    
+
 
 @app.route("/api/logout", methods=['POST'])
 def logout():
@@ -257,11 +257,36 @@ def get_component_by_name(name):
         return {'error': json.dumps(e, default=str)}, 400
 
 
+@app.route("/api/components_tree/<name>/<depth>/<time>")
+def components_tree(name, depth, time):
+    """Given a component name, time to check, and a depth, trace the graph
+    and return nodes and edges within the given depth at the given time.
+
+    :param name: The component name
+    :type name: str
+    :param depth: The search depth
+    :type depth: int
+    :param time: The unix timestamp in seconds
+    :type time: int
+
+    :return: Return a dictionary of 'result' with nodes and edges
+    :rtype: dict
+    """
+    try:
+        component = p.Component.from_db(str(escape(name)))
+        res = {
+            'result': component.get_network(int(depth), int(time))
+        }
+        return res
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
 @app.route("/api/component_list")
 def get_component_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component in the desired list.
 
     The URL parameters are:
@@ -303,12 +328,8 @@ def get_component_list():
         # extract the filters
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [TextP.containing, lambda x: x, lambda x: x])
-
-        # make sure that the range bounds only consist of a min/max, and that
-        # the order direction is either asc or desc.
-        assert len(range_bounds) == 2
-        assert order_direction in {'asc', 'desc'}
+                            [lambda x: TextP("regex", f"(?i){x}"),
+                             lambda x: x, lambda x: x])
 
         # make sure that the range bounds only consist of a min/max, and that
         # the order direction is either asc or desc.
@@ -320,13 +341,13 @@ def get_component_list():
             order_by=[(order_by, order_direction)],
             filters=filt,
         )
-    
+
         return {'result': [c.as_dict(bare=True) for c in components]}
 
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
 
 
 @app.route("/api/set_component_type", methods=['POST'])
@@ -342,7 +363,7 @@ def set_component_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -378,7 +399,7 @@ def replace_component_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -417,7 +438,7 @@ def set_component_version():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -461,7 +482,7 @@ def replace_component_version():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     return {'error': "This routine is broken … " +
@@ -514,7 +535,7 @@ def set_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -522,7 +543,7 @@ def set_component():
         val_type = escape(request.args.get('type'))
         val_version = escape(request.args.get('version'))
 
-        # Query the database and return the ComponentType instance based on the 
+        # Query the database and return the ComponentType instance based on the
         # component type name.
 
         component_type = p.ComponentType.from_db(primary_attr=val_type)
@@ -565,7 +586,7 @@ def replace_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -620,7 +641,7 @@ def disable_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -658,7 +679,7 @@ def set_property_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -675,11 +696,11 @@ def set_property_type():
         # on component type name.
         for name in val_type:
             allowed_list.append(p.ComponentType.from_db(name))
-        
+
         # Need to initialize an instance of a property type first.
-        property_type = p.PropertyType(name=val_name, units=val_units, 
+        property_type = p.PropertyType(name=val_name, units=val_units,
                                        allowed_regex=val_allowed_reg,
-                                       n_values=int(val_values), 
+                                       n_values=int(val_values),
                                        allowed_types=allowed_list,
                                        comments=val_comments)
         property_type.add(permissions=session.get('perms', []))
@@ -716,7 +737,7 @@ def replace_property_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -740,9 +761,9 @@ def replace_property_type():
         for name in val_type:
             allowed_list.append(p.ComponentType.from_db(name))
         # Need to initialize an instance of a property type first.
-        property_type_new = p.PropertyType(name=val_name, units=val_units, 
+        property_type_new = p.PropertyType(name=val_name, units=val_units,
                                            allowed_regex=val_allowed_reg,
-                                           n_values=int(val_values), 
+                                           n_values=int(val_values),
                                            allowed_types=allowed_list,
                                            comments=val_comments)
         property_type_old = p.PropertyType.from_db(val_property_type)
@@ -757,7 +778,7 @@ def replace_property_type():
 
 @app.route("/api/component_count")
 def get_component_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
+    """Given a URL parameter 'filters', return a dictionary with a value
     'result' and corresponding value being the number of components that satisfy
     said filters.
 
@@ -766,14 +787,15 @@ def get_component_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of components that satisfy the filters. 
+    the number of components that satisfy the filters.
     :rtype: dict
     """
     try:
 
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [TextP.containing, lambda x: x, lambda x: x])
+                            [lambda x: TextP("regex", f"(?i){x}"),
+                             lambda x: x, lambda x: x])
 
         return {'result': p.Component.get_count(filters=filt)}
 
@@ -784,16 +806,16 @@ def get_component_count():
 
 @app.route("/api/component_types_and_versions")
 def get_component_types_and_versions():
-    """Return a dictionary with a value 'result' and corresponding value 
+    """Return a dictionary with a value 'result' and corresponding value
     being a list of all the component types and their corresponding versions.
 
-    # TODO: This should ideally never, ever be used. Querying every type and 
+    # TODO: This should ideally never, ever be used. Querying every type and
     # corresponding version is a very bad idea. In the web interface, instead
     of fetching this URL, create a ComponentTypeAutocomplete and
     ComponentVersionAutocomplete that will query the limited component list
     that has a min/max range instead.
 
-    :return: A dictionary with a value 'result' and corresponding value 
+    :return: A dictionary with a value 'result' and corresponding value
     being a list of all the component types and their corresponding versions.
     :rtype: dict
     """
@@ -814,14 +836,14 @@ def get_component_types_and_versions():
 
 @app.route("/api/component_type_list")
 def get_component_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'nameSubstring', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'nameSubstring', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component type in the desired list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component type to be
+    considered in the list and the second integer denotes the last component
     type to be shown in the list.
 
     orderBy - the field to order the component type list by, a string.
@@ -854,14 +876,14 @@ def get_component_type_list():
         order_by=[(order_by, order_direction)],
         filters=[{"name": TextP.containing(name_substring)}]
     )
-    
+
     return {"result": [t.as_dict() for t in types]}
 
 
 @app.route("/api/component_type_count")
 def get_component_type_count():
-    """Given a URL parameter 'nameSubstring', return a dictionary with a value 
-    'result' and corresponding value being the number of component types that 
+    """Given a URL parameter 'nameSubstring', return a dictionary with a value
+    'result' and corresponding value being the number of component types that
     have said substring in their name.
 
     nameSubstring - substring of the name of component types to consider.
@@ -879,16 +901,16 @@ def get_component_type_count():
 
 @app.route("/api/component_version_list")
 def get_component_version_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component version in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component version to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component version to be
+    considered in the list and the second integer denotes the last component
     to be shown in the list.
 
     orderBy - the field to order the component version list by.
@@ -896,12 +918,12 @@ def get_component_version_list():
     orderDirection - either "asc" or "desc" for ascending/descending,
     respectively.
 
-    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of 
+    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of
     two-tuples of strings with the tuples separated by semicolons and the
     tuples' contents separated by commas.
 
     :return: A dictionary containing a key 'result' with its corresponding value
-    being an array of dictionary representations of each component version 
+    being an array of dictionary representations of each component version
     in the desired list.
     :rtype: dict
     """
@@ -910,8 +932,10 @@ def get_component_version_list():
     order_direction = escape(request.args.get('orderDirection'))
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "type"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "type"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     range_bounds = tuple(map(int, list_range.split(';')))
 
@@ -924,13 +948,13 @@ def get_component_version_list():
         order_by=[(order_by, order_direction)],
         filters=filt
     )
-    
+
     return {"result": [v.as_dict() for v in vers]}
 
 @app.route("/api/component_version_count")
 def get_component_version_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of component types that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of component types that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -938,21 +962,23 @@ def get_component_version_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of components that satisfy the filters. 
+    the number of components that satisfy the filters.
     :rtype: dict
     """
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "type"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "type"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     return {'result': p.ComponentVersion.get_count(filters=filt)}
 
 
 @app.route("/api/property_type_count")
 def get_property_type_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of property types that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of property types that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -960,13 +986,15 @@ def get_property_type_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of property type that satisfy the filters. 
+    the number of property type that satisfy the filters.
     :rtype: dict
     """
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "allowed_types"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "allowed_types"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     return {
         'result': p.PropertyType.get_count(filters=filt)
@@ -975,16 +1003,16 @@ def get_property_type_count():
 
 @app.route("/api/property_type_list")
 def get_property_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     property type in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first property type to be 
-    considered in the list and the second integer denotes the last property type 
+    where the first integer denotes the index first property type to be
+    considered in the list and the second integer denotes the last property type
     to be shown in the list.
 
     orderBy - the field to order the property type list by.
@@ -992,12 +1020,12 @@ def get_property_type_list():
     orderDirection - either "asc" or "desc" for ascending/descending,
     respectively.
 
-    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of 
+    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of
     two-tuples of strings with the tuples separated by semicolons and the
     tuples' contents separated by commas.
 
     :return: A dictionary containing a key 'result' with its corresponding value
-    being an array of dictionary representations of each property type 
+    being an array of dictionary representations of each property type
     in the desired list.
     :rtype: dict
 
@@ -1007,8 +1035,10 @@ def get_property_type_list():
     order_direction = escape(request.args.get('orderDirection'))
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "allowed_types"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "allowed_types"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     range_bounds = tuple(map(int, list_range.split(';')))
 
@@ -1050,7 +1080,7 @@ def set_component_property():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1076,7 +1106,7 @@ def set_component_property():
 
         t = tmp_timestamp(val_time, val_uid, val_comments)
         component.set_property(property, start=t,
-                               permissions=session.get('perms', [])) 
+                               permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1132,11 +1162,11 @@ def end_component_property():
         component.unset_property(property, t)
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
 
 @app.route("/api/component_replace_property")
 def replace_component_property():
@@ -1148,7 +1178,7 @@ def replace_component_property():
 
     name - the name of the component to replace the property for.
 
-    propertyType - the name of the property type of the property. 
+    propertyType - the name of the property type of the property.
     This attribute remains same for both the old and the new property.
 
     time - the UNIX time for when the new property is set.
@@ -1188,7 +1218,7 @@ def replace_component_property():
         t = tmp_timestamp(val_time, val_uid, val_comments)
 
         component.replace_property(propertyTypeName=val_property_type,
-                                property=property_new, at_time=val_time, 
+                                property=property_new, at_time=val_time,
                                 uid=val_uid, start=t, comments=val_comments,
                                 permissions=session.get('perms', []))
 
@@ -1217,7 +1247,7 @@ def disable_component_property():
         )
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1248,7 +1278,7 @@ def add_component_connection():
     :return: Return a dictionary with a key 'result' and value being a boolean
     that is True if and only if the components were not already connected
     beforehand, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1259,16 +1289,16 @@ def add_component_connection():
         val_comments = escape(request.args.get('comments'))
         val_replace_time = escape(request.args.get('replace_time'))
         val_end_time = escape(request.args.get('end_time'))
-        
+
         c1, c2 = p.Component.from_db(val_name1), p.Component.from_db(val_name2)
         t = tmp_timestamp(val_time, val_uid, val_comments)
 
         if val_replace_time == 'None':
             c1.connect(c2, t, to_replace=None, permissions=session.get("perms", []))
-        
+
         else:
             # get existing connection object
-            connections = c1.get_connections(comp=c2, at_time=val_replace_time)             
+            connections = c1.get_connections(comp=c2, at_time=val_replace_time)
 
             if val_end_time == 'None':
                 c1.connect(c2, t, to_replace=connections[0],
@@ -1328,7 +1358,7 @@ def end_component_connection():
             already_disconnected = True
 
         return {'result': not already_disconnected}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1337,7 +1367,7 @@ def end_component_connection():
 @app.route("/api/component_disable_connection")
 def disable_component_connection():
     """Given the names of the two components to disable the connection between,
-    and the time at which the connection was created, disable the connection between 
+    and the time at which the connection was created, disable the connection between
     the two components.
 
     The URL parameters are:
@@ -1348,7 +1378,7 @@ def disable_component_connection():
 
     start_time - the time at which the connection was started
     """
-    try: 
+    try:
         val_name1 = escape(request.args.get('name1'))
         val_name2 = escape(request.args.get('name2'))
         time = escape(request.args.get('start_time'))
@@ -1358,7 +1388,7 @@ def disable_component_connection():
         connections = c1.get_connections(comp=c2, at_time=time)
         if len(connections) > 1:        # this shouldn't happen
             # add to error message this is really broken
-            raise Exception(f"Multiple connections exist between {val_name1} and {val_name2}" 
+            raise Exception(f"Multiple connections exist between {val_name1} and {val_name2}"
                 + f" at start time {datetime.fromtimestamp(int(time))}."
                 + "Something went very wrong, please contact a maintainer!")
 
@@ -1369,9 +1399,9 @@ def disable_component_connection():
                 + "Something went very wrong, please contact a maintainer!")
         else:
             connections[0].disable()        # disable the connection
-            
+
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1379,7 +1409,7 @@ def disable_component_connection():
 
 @app.route("/api/get_connections")
 def get_connections():
-    """Given a component name and a time to check all connections, return all 
+    """Given a component name and a time to check all connections, return all
     connections of the component at a certain time in dictionary format.
 
     The URL parameters are:
@@ -1406,9 +1436,7 @@ def get_connections():
             {
                 'inVertex': conn.inVertex.as_dict(),
                 'outVertex': conn.outVertex.as_dict(),
-                'subcomponent': True if isinstance(conn,
-                                                   p.RelationSubcomponent) \
-                                else False,
+                'subcomponent': isinstance(conn, p.RelationSubcomponent),
                 'id': conn.id(),
             }
             for conn in connections
@@ -1468,11 +1496,8 @@ def add_component_subcomponent():
         already_subcomponent = False
 
         try:
-            c1.subcomponent_connect(
-                component=c2,
-                permissions=session.get('perms', [])
-            )
-        except ComponentAlreadySubcomponentError:
+            c1.subcomponent_connect(c2, permissions=session.get('perms', []))
+        except p.ComponentAlreadySubcomponentError:
             already_subcomponent = True
 
         return {'result': not already_subcomponent}
@@ -1497,7 +1522,7 @@ def disable_component_subcomponent():
     that is True.
     :rtype: dict
     """
-    try: 
+    try:
         raise Exception(f"disable subcomponent error")
         val_name1 = escape(request.args.get('name1'))
         val_name2 = escape(request.args.get('name2'))
@@ -1507,7 +1532,7 @@ def disable_component_subcomponent():
                                 permissions=session.get('perms', []))
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1525,7 +1550,7 @@ def set_flag_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1559,7 +1584,7 @@ def replace_flag_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1597,7 +1622,7 @@ def set_flag_severity():
         flag_severity.add(permissions=session.get('perms', []))
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1615,7 +1640,7 @@ def replace_flag_severity():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
         val_flag_severity = escape(request.args.get('flag_severity'))
 
@@ -1656,7 +1681,7 @@ def set_flag():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1720,7 +1745,7 @@ def unset_flag():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
         val_uid = escape(request.args.get('uid'))
         val_end_time = escape(request.args.get('end_time'))
@@ -1770,7 +1795,7 @@ def replace_flag():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1804,7 +1829,7 @@ def replace_flag():
         if len(matches) > 1:
             raise Exception(f"Multiple flags found with name '{val_flag}'. Please disambiguate.")
         flag_old = matches[0]
-        
+
         start = tmp_timestamp(val_start_time, val_uid, val_start_comments)
         if val_end_time != str(0):
             end = tmp_timestamp(val_end_time, val_uid, val_start_comments)
@@ -1837,7 +1862,7 @@ def disable_flag():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
 
         # Lookup flag by its display name stored in notes
@@ -1850,7 +1875,7 @@ def disable_flag():
         flag.disable()
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1858,8 +1883,8 @@ def disable_flag():
 
 @app.route("/api/flag_count")
 def get_flag_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of flags that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of flags that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -1867,7 +1892,7 @@ def get_flag_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of flag that satisfy the filters. 
+    the number of flag that satisfy the filters.
     :rtype: dict
     """
     try:
@@ -1898,15 +1923,15 @@ def get_flag_count():
 
 @app.route("/api/flag_list")
 def get_flag_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     flag in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first property type to be 
+    where the first integer denotes the index first property type to be
     considered in the list and the second integer denotes the last flag
     to be shown in the list.
 
@@ -1977,14 +2002,14 @@ def get_flag_list():
 
 @app.route("/api/flag_type_list")
 def get_flag_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'nameSubstring', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'nameSubstring', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     flag type in the desired list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component type to be
+    considered in the list and the second integer denotes the last component
     type to be shown in the list.
 
     orderBy - the field to order the flag type list by, a string.
@@ -2022,8 +2047,8 @@ def get_flag_type_list():
 
 @app.route("/api/flag_type_count")
 def get_flag_type_count():
-    """Given a URL parameter 'nameSubstring', return a dictionary with a value 
-    'result' and corresponding value being the number of flag types that 
+    """Given a URL parameter 'nameSubstring', return a dictionary with a value
+    'result' and corresponding value being the number of flag types that
     have said substring in their name.
 
     nameSubstring - substring of the name of flag types to consider.
@@ -2048,7 +2073,7 @@ def get_flag_severity_list():
     list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
+    where the first integer denotes the index first component type to be
     considered in the list and the second integer denotes the last flag severity
     to be shown in the list.
 
@@ -2178,7 +2203,7 @@ def set_user():
         val_user_group = request.form.get('user_group').split(';')
     else:
         val_user_group = ['']
-        
+
     print(val_user_group)
 
     allowed_list = []
@@ -2193,6 +2218,7 @@ def set_user():
     user.add()
 
     return {'result': True}
+
 
 @app.route("/api/new_user", methods=['POST'])
 def new_user():
@@ -2212,6 +2238,7 @@ def new_user():
         pass
     return {'result': True}
 
+
 @app.route("/api/new_usergroup", methods=['POST'])
 def new_user_group():
     val_name = request.form.get('name')
@@ -2220,6 +2247,7 @@ def new_user_group():
     group = p.UserGroup(name=val_name, permissions=permissions)
     group.add(permissions=session.get('perms', []))
     return {'result': True}
+
 
 @app.route("/api/new_set_usergroup", methods=['POST'])
 def new_set_user_group():
@@ -2236,7 +2264,7 @@ def new_set_user_group():
     :return: Return a dictionary with a key 'result' and value being a boolean
     that is True if and only if the components were not already connected
     beforehand, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -2256,7 +2284,7 @@ def new_set_user_group():
         val_user = escape(request.form.get('user'))
         val_group = escape(request.form.get('group'))
         groups = val_group.split(';')
-        
+
         user = p.User.from_db(val_user)
         # user, group = p.User.from_db(val_user), p.UserGroup.from_db(val_group)
         for gr in groups:
@@ -2268,7 +2296,8 @@ def new_set_user_group():
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
+
 @app.route("/api/get_permissions", methods=['GET'])
 def get_permissions():
     val_username = request.args.get('username')
@@ -2284,7 +2313,8 @@ def get_user_list():
     users = p.User.get_list()
     # return {"result": [c.as_dict(bare=True) for c in components]}
     # return {'result': [p.User.as_dict(u) for u in users]}
-    return {'result': [p.User.as_dict(u) for u in users]} 
+    return {'result': [p.User.as_dict(u) for u in users]}
+
 
 @app.route("/api/get_user_groups", methods=["GET"])
 def get_user_groups():
@@ -2293,11 +2323,99 @@ def get_user_groups():
     groups = user.get_groups()
     return {'result': [gr.as_dict() for gr in groups]}
 
+
 @app.route("/api/get_user_group_list", methods=["GET"])
 def get_user_group_list():
     groups = p.UserGroup.get_list()
     return {'result': [p.UserGroup.as_dict(gr) for gr in groups]}
 
+
 @app.route("/api/get_all_permissions", methods=["GET"])
 def get_all_permissions():
     return {'result': list(p.permissions_set)}
+
+
+@app.route("/api/component_sequence_list", methods=["GET"])
+def get_component_sequence_list():
+    component_range = escape(request.args.get('range'))
+    order_by = escape(request.args.get('orderBy'))
+    order_direction = escape(request.args.get('orderDirection'))
+    # name_substring = escape(request.args.get('nameSubstring'))
+
+    range_bounds = tuple(map(int, component_range.split(';')))
+
+    # make sure that the range bounds only consist of a min/max, and that
+    # the order direction is either asc or desc.
+    assert len(range_bounds) == 2
+    assert order_direction in {'asc', 'desc'}
+
+    sequences = p.ComponentSequence.get_list(
+        range=range_bounds,
+        order_by=[(order_by, order_direction)],
+        # filters=[{"name": TextP.containing(name_substring)}]
+    )
+
+    return {"result": [s.as_dict() for s in sequences]}
+
+
+@app.route("/api/set_sequence", methods=['POST'])
+def set_sequence():
+    try:
+        name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
+        next_seq = int(request.args.get('next_seq', 0))
+
+        # Query the database and return the ComponentType instance based on the
+        # component type name.
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        component = p.ComponentSequence(
+            name=name, component_type=component_type, format=format_,
+            increment=increment, next_seq=next_seq,
+        )
+        component.add(permissions=session.get('perms', []))
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/update_sequence/<name>", methods=['POST'])
+def update_sequence(name):
+    try:
+        new_name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
+        next_seq = request.args.get('next_seq', 0, type=int)
+
+        # query the database to get the existing sequence and component type
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        vals = {
+            'increment': increment,
+            'next_seq': next_seq,
+        }
+        if new_name:
+            vals['name'] = new_name
+        if component_type:
+            vals['component_type'] = component_type
+        if format_:
+            vals['format'] = format_
+
+        sequence.update(**vals)
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/delete_sequence/<name>", methods=['POST'])
+def delete_sequence(name):
+    try:
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        sequence.delete()
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}

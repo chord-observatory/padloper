@@ -1,12 +1,16 @@
 import ComponentList from './ComponentList.js';
 import ComponentTypeList from './ComponentTypeList.js';
 import ComponentVersionList from './ComponentVersionList.js';
+import ComponentSequenceList from './ComponentSequenceList.js';
 import PropertyTypeList from './PropertyTypeList';
 import ComponentPage from './ComponentPage.js';
 import ComponentConnectionVisualizer from './ComponentConnectionVisualizer.js';
+import NewVisualizer from './NewVisualizer.js';
 import FlagTypeList from './FlagTypeList.js'
 import FlagList from './FlagList.js';
 import Header from './Header.js';
+import Barcode from './Barcode.js';
+import BulkInput from './BulkInput.js';
 
 import { ReactFlowProvider } from 'reactflow';
 
@@ -22,6 +26,7 @@ import UserGroupManagementPage from './UserGroupManagement.js';
 import UserCreatePage from './UserCreate.js';
 import { BASE_PATH } from './paths.js';
 
+
 /**
  * The main page where the header and site contents are rendered,
  * depending on the URL's path and parameters.
@@ -36,7 +41,7 @@ function App() {
 
   window.addEventListener("error", (e) => {
     if (e.message === "ResizeObserver loop completed with undelivered " +
-        "notifications." || 
+        "notifications." ||
         e.message === 'ResizeObserver loop limit exceeded') {
       console.log("Oh, yeah!!!!");
 //      e.stopImmediatePropagation();
@@ -58,7 +63,7 @@ function App() {
         <Header />
       } */}
         <Header />
-        
+
         <Routes>
 
           {/**
@@ -71,45 +76,45 @@ function App() {
             element={<Login />}
           />
 
-          <Route 
-            exact={true} 
+          <Route
+            exact={true}
             path="/list/component"
-            element={<ComponentList />} 
+            element={<ComponentList />}
           />
-            
-          <Route 
-            exact={true} 
+
+          <Route
+            exact={true}
             path="/list/component-types"
-            element={<ComponentTypeList />} 
+            element={<ComponentTypeList />}
           />
 
-          <Route 
-            exact={true} 
+          <Route
+            exact={true}
             path="/list/flag-types"
-            element={<FlagTypeList />} 
+            element={<FlagTypeList />}
           />
 
-          <Route 
-            exact={true} 
+          <Route
+            exact={true}
             path="/list/flag"
-            element={<FlagList />} 
+            element={<FlagList />}
           />
 
-          <Route 
-            exact={true} 
-            path="/list/component-versions" 
+          <Route
+            exact={true}
+            path="/list/component-versions"
             element={<ComponentVersionList />}
           />
 
-          <Route 
-            exact={true} 
+          <Route
+            exact={true}
             path="/list/property-types"
             element={
               <PropertyTypeList />
-            } 
+            }
           />
 
-          <Route 
+          <Route
             exact={true}
             path="/manage/users"
             element={
@@ -118,7 +123,7 @@ function App() {
           />
 
 
-          <Route 
+          <Route
             exact={true}
             path="/manage/users/groups"
             element={
@@ -126,7 +131,7 @@ function App() {
             }
           />
 
-          <Route 
+          <Route
             exact={true}
             path="/users"
             element={
@@ -134,27 +139,86 @@ function App() {
             }
           />
 
-         
+
           {
             // A ReactFlowProvider is wrapped around the visualizer to give it
             // access to the React Flow hooks:
             // https://reactflow.dev/docs/api/react-flow-provider/
           }
-          <Route 
-            exact={true} 
-            path="/component-connections" 
+          {/* <Route
+            exact={true}
+            path="/component-connections"
             element={
               <ReactFlowProvider>
                 <ComponentConnectionVisualizer />
               </ReactFlowProvider>
-            } 
+            }
+          /> */}
+
+          {
+            /**
+             * A ReactFlowProvider is wrapped around the visualizer to
+             * give it access to the React Flow hooks:
+             * https://reactflow.dev/docs/api/react-flow-provider/
+             */
+          }
+          <Route
+            exact={true}
+            path="/component-connections"
+            element={
+              <ReactFlowProvider>
+                <NewVisualizer />
+              </ReactFlowProvider>
+            }
           />
-          
+
           {/*
             :name denotes a URL parameter, so /component/COMP-1 will load
             the component page for COMP-1.
           */}
           <Route exact path="/component/:name" element={<ComponentPage />} />
+
+          {/**
+           * Barcode scanning to find, connect, and add components
+           */}
+          <Route
+            exact={true}
+            path="/barcode"
+            element={
+              <Barcode />
+            }
+          />
+
+          {/**
+           * Bulk input to create or edit components
+           */}
+          <Route
+            exact={true}
+            path="/bulk-input"
+            element={
+              <BulkInput />
+            }
+          />
+
+          {/**
+           * Component sequence list
+           */}
+          <Route
+            exact={true}
+            path="/list/component-sequences"
+            element={
+              <ComponentSequenceList />
+            }
+          />
+
+          {/**
+           * Route for specific component
+           */}
+          {/* <Route
+            exact={true}
+            path="/component-sequence/:name"
+            element={}
+          /> */}
 
         </Routes>
 
@@ -163,7 +227,7 @@ function App() {
       </div>
 
     </OAuthContext.Provider>
-    
+
   );
 }
 

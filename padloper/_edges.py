@@ -80,6 +80,23 @@ class RelationComponentType(Edge):
         Edge.add(self, attributes={})
 
 
+class RelationComponentSequence(Edge):
+    """
+    Representation of a "rel_component_sequence" edge.
+    """
+
+    category: str = "rel_component_sequence"
+
+    def __init__(self, inVertex: Vertex, outVertex: Vertex,
+                 id: int = g._VIRTUAL_ID_PLACEHOLDER):
+        super().__init__(id=id, inVertex=inVertex, outVertex=outVertex)
+
+    def add(self):
+        """Add this relation to the serverside.
+        """
+        Edge.add(self, attributes={})
+
+
 class RelationSubcomponent(Edge):
     """
     Representation of a "rel_subcomponent" edge.
@@ -225,7 +242,7 @@ class RelationUserGroup(Edge):
     ):
         Edge.__init__(self=self, id=id,
                       inVertex=inVertex, outVertex=outVertex)
-    
+
     def add(self):
         """Add this relation to the serverside
         """

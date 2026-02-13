@@ -24,7 +24,6 @@ function UserGroupManagementPage() {
         fetch(withBase(input))
           .then(requireOkJson)
           .then(data => {
-            console.log(data.result)
             setUserGroups(data.result);
           })
           .catch(err => {
@@ -88,13 +87,13 @@ function UserGroupManagementPage() {
 
     const handleCreateGroup = () => {
         // Make API call to create new user group with selected permissions
-        
+
         let input = '/api/new_usergroup';
         const formData = new FormData();
         formData.append('name', newGroupName);
         formData.append('permissions', selectedPermissions.join(";"));
         const requestOptions = {
-            method: 'POST', 
+            method: 'POST',
             body: formData
         };
         fetch(withBase(input), requestOptions)
@@ -105,7 +104,7 @@ function UserGroupManagementPage() {
           .catch(err => {
             console.error("Err:", err);
           })
-        
+
 
         // Close modal after creating group
         setOpenModal(false);

@@ -7,11 +7,11 @@ import { withBase, requireOkJson } from './paths.js';
 /**
  * An Autocomplete component that queries the component list in the DB and gives
  * a text field with possible values to select in the dropdown.
- * 
+ *
  * @param {function(string)} onSelect - function to call when value is selected.
  * @param {string} excludeName - what name, if any, to select from the dropdown.
  */
-    
+
 export default function ComponentAutocomplete(
     {
         onSelect,
@@ -26,9 +26,9 @@ export default function ComponentAutocomplete(
 
     // list of options to pick from
     const [options, setOptions] = useState([]);
-    
+
     // what is contained inside the text field
-    const [entered_string, setEnteredString] = useState(""); 
+    const [entered_string, setEnteredString] = useState("");
 
     // whether the list of options is currently loading the list of components
     const [loading, setLoading] = useState(open && options.length === 0);
@@ -44,12 +44,12 @@ export default function ComponentAutocomplete(
             input += `&orderBy=name`
             input += `&orderDirection=asc`;
             input += `&filters=${entered_string},,`; // double comma needed
-    
+
             // query the URL with flask, and set the input.
             fetch(withBase(input))
               .then(requireOkJson)
               .then(data => {
-                // get rid of the element with the same name 
+                // get rid of the element with the same name
                 // as "excludeName" parameter
                 let index = data.result.findIndex(
                     (option) => option.name === excludeName
@@ -76,7 +76,7 @@ export default function ComponentAutocomplete(
     }, [entered_string, open]);
 
     /**
-     * basically copied from 
+     * basically copied from
      * https://mui.com/components/autocomplete/#asynchronous-requests
      */
     return (
@@ -97,7 +97,7 @@ export default function ComponentAutocomplete(
         onChange={(event, value, reason, details) => onSelect(value)}
         loading={loading}
         renderInput={(params) => (
-            <TextField  
+            <TextField
             variant="filled"
             {...params}
             label="Component"
@@ -105,8 +105,8 @@ export default function ComponentAutocomplete(
                 ...params.InputProps,
                 endAdornment: (
                 <React.Fragment>
-                    {loading 
-                        ? <CircularProgress color="inherit" size={20} /> 
+                    {loading
+                        ? <CircularProgress color="inherit" size={20} />
                         : null
                     }
                     {params.InputProps.endAdornment}

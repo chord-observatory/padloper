@@ -1,4 +1,4 @@
-import { 
+import {
     Button, AppBar, Toolbar, Typography, Stack, Drawer, List, ListItemButton, ListItemText, useMediaQuery, useTheme, Alert
 } from '@mui/material';
 import Avatar from '@mui/material/Avatar';
@@ -23,7 +23,7 @@ function Header() {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
     const [userData, setUserData] = useState({});
-    const { accessToken, setAccessToken } = useContext(OAuthContext); 
+    const { accessToken, setAccessToken } = useContext(OAuthContext);
     const navigate = useNavigate();
     let login_ok = true;
     const theme = useTheme();
@@ -49,8 +49,8 @@ function Header() {
                 console.log(res.data)
             })
             .catch(err => {
-                const msg = (err && err.response && err.response.data && err.response.data.error) ? err.response.data.error : 'Login failed';
-                console.log(msg);
+                const msg = err?.response?.data?.error || 'Login failed';
+                console.error(msg);
             })
         }
     }, [userData])
@@ -89,7 +89,6 @@ function Header() {
       })
       .then(requireOkJson)
       .then((data) => {
-        console.log(data);
         setUserData(data);
       })
       .catch((err) => {
@@ -104,14 +103,14 @@ function Header() {
     }
     return (
         <>
-        <AppBar 
+        <AppBar
             position="static"
             style={{
                 marginBottom: '16px',
             }}
             sx={{ width: '100%' }}>
           <Toolbar sx={{ flexWrap: 'wrap' }}>
-            <Typography 
+            <Typography
             variant="h6"
             style={{
                 flexGrow: 1,
@@ -135,21 +134,25 @@ function Header() {
                    sx={{ flexWrap: 'wrap', rowGap: 1, columnGap: 2, display: { xs: 'none', md: 'flex' } }}>
 
                 {/*Pass in the names of the links along with their paths*/}
-                
+
                 <HeaderMenuButton
                     name={"Components"}
                     links={[
                         {
-                            name: 'Component List', 
+                            name: 'Component List',
                             link: `/list/component`
                         },
                         {
-                            name: 'Component Types', 
+                            name: 'Component Types',
                             link: `/list/component-types`
                         },
                         {
-                            name: 'Component Versions', 
+                            name: 'Component Versions',
                             link: `/list/component-versions`
+                        },
+                        {
+                            name: 'Component Sequences',
+                            link: `/list/component-sequences`,
                         },
                     ]}
                 />
@@ -158,7 +161,7 @@ function Header() {
                     name={"Properties"}
                     links={[
                         {
-                            name: 'Property Types', 
+                            name: 'Property Types',
                             link: `/list/property-types`
                         }
                     ]}
@@ -168,11 +171,11 @@ function Header() {
                     name={"Flags"}
                     links={[
                         {
-                            name: 'Flag Types', 
+                            name: 'Flag Types',
                             link: `/list/flag-types`
                         },
                         {
-                            name: 'Flags', 
+                            name: 'Flags',
                             link: `/list/flag`
                         },
                     ]}
@@ -182,17 +185,37 @@ function Header() {
                     name={"Visualizations"}
                     links={[
                         {
-                            name: 'Component Connections', 
+                            name: 'Component Connections',
                             link: `/component-connections`
                         },
+                        // {
+                        //     name: 'New Visualization',
+                        //     link: `/new-visualizer`
+                        // },
                     ]}
                 />
+
+                {/* <Button
+                    component={Link}
+                    to="/barcode"
+                    color="inherit"
+                >
+                    Barcode
+                </Button> */}
+
+                <Button
+                    component={Link}
+                    to="/bulk-input"
+                    color="inherit"
+                >
+                    Bulk Input
+                </Button>
 
                 <HeaderMenuButton
                     name={"Manage Users"}
                     links={[
                         {
-                            name: 'User Management', 
+                            name: 'User Management',
                             link: `/manage/users`
                         },
                         {
@@ -227,17 +250,17 @@ function Header() {
                     onClick={handleClose}
                 >
                     <MenuItem>
-                    {/* 
+                    {/*
                     avatar: https://mui.com/material-ui/react-avatar/
-                    menu: https://mui.com/material-ui/react-menu/ 
+                    menu: https://mui.com/material-ui/react-menu/
                     */}
                         <a href={userData? userData.html_url : ''} style={{ display: 'flex', alignItems: 'center', 'textDecoration': 'none', 'color': 'black'}}>
                             <GithubIcon style={{ marginRight: '5px' }} /> {userData ? userData.login : ''}
                         </a>
                     </MenuItem>
                     <MenuItem
-                        // remove local storage 
-                        onClick={() => { 
+                        // remove local storage
+                        onClick={() => {
                             localStorage.removeItem("accessToken");
                             axios.post(withBase("/api/logout"))
                             .then(res => {
@@ -333,7 +356,7 @@ function Header() {
                             <ListItemButton component={'a'} href={userData.html_url} target="_blank" rel="noopener noreferrer" onClick={() => setMobileOpen(false)}>
                                 <ListItemText primary="GitHub Profile" />
                             </ListItemButton>
-                            <ListItemButton onClick={() => { 
+                            <ListItemButton onClick={() => {
                                 localStorage.removeItem("accessToken");
                                 axios.post(withBase("/api/logout"))
                                     .then(res => { console.log(res.data); })
