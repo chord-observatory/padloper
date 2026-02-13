@@ -18,34 +18,59 @@ const Item = styled(Paper)(({ theme }) => ({
 }))
 
 function Barcode() {
+    /**
+     * Handle a scanned barcode when 'barcodescan' event triggered.
+     */
+    const handleBarcode = (e) => {
+        let barcode = e.detail.barcode;
+        console.log(barcode);
+    }
+
+    /**
+     * Detect barcode scanning and trigger the 'barcodescan' event.
+     *
+     * Scanning a barcode emulates typing characters extremely fast, so
+     * this listens for keypress events and checks if they happen fast
+     * enough to be likely from scanning a barcode.
+     */
+    useEffect(() => {
+        var timeoutHandler = 0;
+        var inputString = '';
+        const detectBarcode = (event) => {
+            if (timeoutHandler) {
+                clearTimeout(timeoutHandler);
+            }
+            inputString += event.key;
+
+            timeoutHandler = setTimeout(() => {
+                if (inputString.length <= 3) {
+                    inputString = '';
+                } else {
+                    let barcodeEvent = new CustomEvent(
+                        "barcodescan", { detail: { barcode: inputString } }
+                    );
+                    window.dispatchEvent(barcodeEvent);
+                    inputString = '';
+                }
+            }, 50);
+        }
+        window.addEventListener('keypress', detectBarcode);
+        window.addEventListener('barcodescan', handleBarcode);
+
+        return () => {
+            window.removeEventListener('keypress', detectBarcode);
+            window.removeEventListener('barcodescan', handleBarcode);
+        }
+    }, []);
+
     return (
         <>
             <Authenticator />
             <Paper
-                // style={{
-                //     marginTop: '16px',
-                //     paddingTop: '8px',
-                //     paddingBottom: '8px',
-                //     flexGrow: 1,
-                //     marginBottom: '8px',
-                //     textAlign: 'center',
-                //     display: 'grid',
-                //     justifyContent: 'space-between',
-                //     rowGap: '8px',
-                //     width: '600px',
-                //     maxWidth: '100%',
-                //     margin: 'auto',
-                // }}
                 sx={{
-                    // display: 'flex',
-                    // flexDirection: 'column',
-                    // flexGrow: 1,
-                    // alignSelf: 'center',
                     mt: 4,
                     p: 4,
                     mb: 2,
-                    // g: 2,
-                    // justifyContent: 'space-between',
                     margin: 'auto',
                     width: '100%',
                     maxWidth: {
@@ -63,11 +88,14 @@ function Barcode() {
                             Barcode Scanner
                         </Typography>
                     </Grid>
-                    <Grid item xs={6}>
-                        <Button fullWidth variant="contained">Item 1</Button>
+                    <Grid item xs={4}>
+                        <Button fullWidth variant="contained">Find Component</Button>
                     </Grid>
-                    <Grid item xs={6}>
-                        <Button fullWidth>Item 2</Button>
+                    <Grid item xs={4}>
+                        <Button fullWidth variant="contained">Add Component</Button>
+                    </Grid>
+                    <Grid item xs={4}>
+                        <Button fullWidth variant="contained">Replace Component</Button>
                     </Grid>
                 </Grid>
             </Paper>

@@ -3,9 +3,9 @@ import axios from 'axios';
 
 import { styled } from '@mui/material/styles';
 import {
-    Box, Button, Chip, Dialog, DialogActions, DialogContent,
-    DialogTitle, FormControl, Grid, InputLabel, MenuItem, Paper,
-    Select, TextField
+    Box, Button, Chip, Checkbox, Dialog, DialogActions, DialogContent,
+    DialogTitle, FormControl, FormControlLabel, Grid, InputLabel,
+    MenuItem, Paper, Select, TextField
 } from '@mui/material';
 
 import { withBase } from './paths.js';
@@ -25,11 +25,11 @@ function ComponentSequenceAddButton({componentTypes, toggleReload}) {
     // store selected component type
     const [componentType, setComponentType] = useState('');
 
-    // store the prefix
-    const [prefix, setPrefix] = useState('');
+    // store the format
+    const [format, setFormat] = useState('');
 
-    // store the numeric sequence size with default 1
-    const [seqSize, setSeqSize] = useState(1);
+    // store the value that determines if we should auto-increment
+    const [increment, setIncrement] = useState(false);
 
     // store the next sequence number with default 0
     const [nextSeq, setNextSeq] = useState(0);
@@ -84,8 +84,8 @@ function ComponentSequenceAddButton({componentTypes, toggleReload}) {
         let path = '/api/set_sequence';
         path += `?name=${name}`;
         path += `&component_type=${componentType}`;
-        path += `&prefix=${prefix}`;
-        path += `&seq_size=${seqSize}`;
+        path += `&format=${format}`;
+        path += `&increment=${increment}`;
         path += `&next_seq=${nextSeq}`;
 
         axios.post(withBase(path)).then((res) => {
@@ -150,36 +150,30 @@ function ComponentSequenceAddButton({componentTypes, toggleReload}) {
                         <FormControl fullWidth>
                             <TextField
                                 autoFocus
-                                id="prefix"
-                                label="Prefix"
+                                id="format"
+                                label="Format"
                                 type="text"
                                 variant="outlined"
-                                value={prefix}
+                                value={format}
                                 onChange={(e) => {
-                                    setPrefix(e.target.value);
+                                    setFormat(e.target.value);
                                 }}
                             />
                         </FormControl>
                     </Box>
                     <Box sx={{ marginTop: '10px', minWidth: 300 }}>
-                        <FormControl fullWidth>
-                            <TextField
-                                autoFocus
-                                id="seqSize"
-                                label="Sequence Size"
-                                type="text"
-                                inputProps={{
-                                    inputMode: 'numeric',
-                                    pattern: '[0-9]*',
-                                }}
-                                variant="outlined"
-                                value={seqSize}
-                                onChange={(e) => {
-                                    let val = e.target.value;
-                                    setSeqSize(val.replace(/[^0-9]*/g, ''));
-                                }}
-                            />
-                        </FormControl>
+                        <FormControlLabel
+                            label="Auto-Increment"
+                            control={
+                                <Checkbox
+                                    checked={increment}
+                                    onChange={() => {setIncrement(!increment)}}
+                                    slotProps={{
+                                        input: { 'aria-label': 'controlled' },
+                                    }}
+                                />
+                            }
+                        />
                     </Box>
                 </DialogContent>
                 <DialogActions>

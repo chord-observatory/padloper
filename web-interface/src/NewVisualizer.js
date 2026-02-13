@@ -395,7 +395,6 @@ function NewConnectionsPanel() {
             }
             newNodes.push(nodeData);
         });
-        // console.log(newNodes);
 
         let newEdges = [];
         allConnections.forEach(conn => {

@@ -10,6 +10,7 @@ import FlagTypeList from './FlagTypeList.js'
 import FlagList from './FlagList.js';
 import Header from './Header.js';
 import Barcode from './Barcode.js';
+import BulkInput from './BulkInput.js';
 
 import { ReactFlowProvider } from 'reactflow';
 
@@ -185,6 +186,17 @@ function App() {
             path="/barcode"
             element={
               <Barcode />
+            }
+          />
+
+          {/**
+           * Bulk input to create or edit components
+           */}
+          <Route
+            exact={true}
+            path="/bulk-input"
+            element={
+              <BulkInput />
             }
           />
 

@@ -2363,8 +2363,8 @@ def set_sequence():
     try:
         name = escape(request.args.get('name'))
         component_type = escape(request.args.get('component_type'))
-        prefix = escape(request.args.get('prefix'))
-        seq_size = int(request.args.get('seq_size', 1))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
         next_seq = int(request.args.get('next_seq', 0))
 
         # Query the database and return the ComponentType instance based on the
@@ -2372,8 +2372,8 @@ def set_sequence():
         component_type = p.ComponentType.from_db(primary_attr=component_type)
 
         component = p.ComponentSequence(
-            name=name, component_type=component_type, prefix=prefix,
-            seq_size=seq_size, next_seq=next_seq,
+            name=name, component_type=component_type, format=format_,
+            increment=increment, next_seq=next_seq,
         )
         component.add(permissions=session.get('perms', []))
         return {'result': True}
@@ -2386,27 +2386,36 @@ def update_sequence(name):
     try:
         new_name = escape(request.args.get('name'))
         component_type = escape(request.args.get('component_type'))
-        prefix = escape(request.args.get('prefix'))
-        seq_size = int(request.args.get('seq_size', 1))
-        next_seq = int(request.args.get('next_seq', 0))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
+        next_seq = request.args.get('next_seq', 0, type=int)
 
         # query the database to get the existing sequence and component type
         sequence = p.ComponentSequence.from_db(primary_attr=name)
         component_type = p.ComponentType.from_db(primary_attr=component_type)
 
-        vals = {}
+        vals = {
+            'increment': increment,
+            'next_seq': next_seq,
+        }
         if new_name:
             vals['name'] = new_name
         if component_type:
             vals['component_type'] = component_type
-        if prefix:
-            vals['prefix'] = prefix
-        if seq_size:
-            vals['seq_size'] = seq_size
-        if next_seq:
-            vals['next_seq'] = next_seq
+        if format_:
+            vals['format'] = format_
 
         sequence.update(**vals)
-    except:
-        raise
-    pass
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/delete_sequence/<name>", methods=['POST'])
+def delete_sequence(name):
+    try:
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        sequence.delete()
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}

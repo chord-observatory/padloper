@@ -43,14 +43,13 @@ export default function Login() {
                                 username: userdata.login,
                                 accessToken: oauthdata.access_token
                             }).then(res => {
-                                console.log(res.data);
                                 // TODO: remove local storage
                                 localStorage.setItem("accessToken",
                                                      oauthdata.access_token);
                                 setRerender(!rerender);
                                 window.location.reload(false);
                             }).catch(err => {
-                                console.log(err);
+                                console.error(err);
                                 setErrorData("Could not sign in. Error was: " +
                                              err.response.data.error);
                             })

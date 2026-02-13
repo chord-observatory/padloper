@@ -49,8 +49,8 @@ function Header() {
                 console.log(res.data)
             })
             .catch(err => {
-                const msg = (err && err.response && err.response.data && err.response.data.error) ? err.response.data.error : 'Login failed';
-                console.log(msg);
+                const msg = err?.response?.data?.error || 'Login failed';
+                console.error(msg);
             })
         }
     }, [userData])
@@ -89,7 +89,6 @@ function Header() {
       })
       .then(requireOkJson)
       .then((data) => {
-        console.log(data);
         setUserData(data);
       })
       .catch((err) => {
@@ -197,16 +196,20 @@ function Header() {
                 />
 
                 {/* <Button
-                    // id="basic-button"
-                    // aria-controls={open ? 'basic-menu' : undefined}
-                    // aria-haspopup="true"
-                    // aria-expanded={open ? 'true' : undefined}
                     component={Link}
                     to="/barcode"
                     color="inherit"
                 >
                     Barcode
                 </Button> */}
+
+                <Button
+                    component={Link}
+                    to="/bulk-input"
+                    color="inherit"
+                >
+                    Bulk Input
+                </Button>
 
                 <HeaderMenuButton
                     name={"Manage Users"}

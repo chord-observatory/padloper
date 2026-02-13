@@ -30,11 +30,11 @@ class ComponentSequence(Vertex):
     category: str = "sequence"
     _vertex_attrs: list = [
         VertexAttr("name", str),
-        VertexAttr("prefix", str),
-        VertexAttr("seq_size", int),
         VertexAttr("component_type", ComponentType,
                    edge_class=RelationComponentSequence),
-        VertexAttr("next_seq", int, optional=True, default=1),
+        VertexAttr("format", str),
+        VertexAttr("increment", bool, default=False),
+        VertexAttr("next_seq", int, default=0),
     ]
     primary_attr: str = "name"
     name: str = "default"
@@ -45,20 +45,31 @@ class ComponentSequence(Vertex):
     def update(self, **kwargs):
         # set the new values client-side
         self.name = kwargs.get('name', self.name)
-        self.prefix = kwargs.get('prefix', self.prefix)
-        self.seq_size = kwargs.get('seq_size', self.seq_size)
         self.component_type = kwargs.get('component_type', self.component_type)
+        self.format = kwargs.get('format', self.format)
+        self.increment = kwargs.get('increment', self.increment)
         self.next_seq = kwargs.get('next_seq', self.next_seq)
 
         # set the properties on the graph object
         g.t.V(self.id()).property('name', self.name)\
-            .property('prefix', self.prefix)\
-            .property('seq_size', self.seq_size)\
-            .property('next_seq', self.next_seq)
+            .property('format', self.format)\
+            .property('increment', self.increment)\
+            .property('next_seq', self.next_seq)\
+            .iterate()
 
         # remove the old edge to component type
-        g.t.V(self.id()).bothE(RelationComponentSequence.category).drop()
+        g.t.V(self.id()).bothE(RelationComponentSequence.category).drop()\
+            .iterate()
 
         # add the new connection to component type
         g.t.V(self.id()).addE(RelationComponentSequence.category)\
-            .from_(__.V(self.component_type.id()))
+            .from_(__.V(self.component_type.id())).iterate()
+        return
+
+    def delete(self):
+        # remove edges associated with this node before deleting the node
+        g.t.V(self.id()).bothE().drop().iterate()
+
+        # remove the node after removing the edges
+        g.t.V(self.id()).drop().iterate()
+        return

@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
-import { Button, FormControl, MenuItem, TextField, Select } from '@mui/material';
+import { Button, FormControl, MenuItem, TextField, Select, Switch } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
+import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 import { withBase, requireOkJson } from './paths.js';
 import Authenticator from './components/Authenticator.js';
@@ -32,7 +35,7 @@ function ComponentSequenceList() {
     const [loaded, setLoaded] = useState(false);
 
     // property to order the sequences by
-    // must be in the set {'name', 'component_type', 'prefix'}
+    // must be in the set {'name', 'component_type', 'format'}
     const [orderBy, setOrderBy] = useState('name');
 
     // error data to display, if any
@@ -121,8 +124,8 @@ function ComponentSequenceList() {
     const [editSeq, setEditSeq] = useState(''); // name of sequence to edit
     const [name, setName] = useState('');
     const [componentType, setComponentType] = useState({});
-    const [prefix, setPrefix] = useState('');
-    const [seqSize, setSeqSize] = useState(0);
+    const [format, setFormat] = useState('');
+    const [increment, setIncrement] = useState(false);
     const [nextSeq, setNextSeq] = useState(0);
 
     const handleEdit = (seqName) => {
@@ -132,28 +135,61 @@ function ComponentSequenceList() {
         let seq = sequences.find((s) => s.name === seqName);
         setName(seq.name);
         setComponentType(seq.component_type.name);
-        setPrefix(seq.prefix);
-        setSeqSize(seq.seq_size);
+        setFormat(seq.format);
+        setIncrement(seq.increment);
         setNextSeq(seq.next_seq);
 
         // everything loaded so activate edit mode
         setEditMode(true);
     };
 
+    const handleDelete = (seqName) => {
+        // post to flask server to delete the node
+        let path = `/api/delete_sequence/${seqName}`;
+        axios.post(withBase(path)).then((res) => {
+            if (res?.data?.result) {
+                toggleReload();
+            } else {
+                setErrorData(JSON.parse(res?.data?.error));
+            }
+        });
+    };
+
     const handleSave = () => {
+        // post to flask server to update data server-side
+        let path = `/api/update_sequence/${editSeq}`;
+        path += `?name=${name}`;
+        path += `&component_type=${componentType}`;
+        path += `&format=${format}`;
+        path += `&increment=${increment}`;
+        path += `&next_seq=${nextSeq}`;
+
+        axios.post(withBase(path)).then((res) => {
+            if (res?.data?.result) {
+                toggleReload();
+                // after data is saved, deactivate edit mode
+                setEditSeq('');
+                setEditMode(false);
+            } else {
+                setErrorData(JSON.parse(res?.data?.error));
+            }
+        });
+    };
+
+    const handleCancel = () => {
         setEditSeq('');
         setEditMode(false);
-    }
+    };
 
     // header cells of the table
     const tableHeadCells = [
         {id: 'name', label: 'Sequence Name', allowOrdering: true},
         {id: 'component_type', label: 'Component Type', allowOrdering: true},
-        {id: 'prefix', label: 'Prefix', allowOrdering: true},
-        {id: 'seq_size', label: 'Sequence Size', allowOrdering: false},
-        {id: 'next_seq', label: 'Next Sequence', allowOrdering: false},
-        {}, // edit button
-        // {}, // delete button
+        {id: 'format', label: 'Format', allowOrdering: true},
+        {id: 'increment', label: 'Increment', allowOrdering: true},
+        {id: 'next_seq', label: 'Next', allowOrdering: false},
+        {}, // edit/save and delete/cancel buttons
+        // {}, // delete/cancel button
     ];
 
     // build the row content as an object map
@@ -203,46 +239,37 @@ function ComponentSequenceList() {
         ) : s.component_type.name,
         s.name === editSeq ? (
             <TextField
-                id="prefix"
+                id="format"
                 type="text"
-                inputProps={{
-                    inputMode: 'numeric',
-                    pattern: '[0-9]*',
-                    style: { textAlign: 'right' },
-                }}
                 variant="standard"
                 size="small"
-                value={prefix}
+                value={format}
                 onChange={(e) => {
                     let val = e.target.value;
-                    setPrefix(val);
+                    setFormat(val);
                 }}
                 sx={{
-                    maxWidth: 80,
+                    maxWidth: 120,
                 }}
             />
-        ) : s.prefix,
+        ) : s.format,
         s.name === editSeq ? (
-            <TextField
-                id="seqSize"
-                type="text"
-                inputProps={{
-                    inputMode: 'numeric',
-                    pattern: '[0-9]*',
-                    style: { textAlign: 'right' },
-                }}
-                variant="standard"
-                size="small"
-                value={seqSize}
-                onChange={(e) => {
-                    let val = e.target.value;
-                    setSeqSize(val.replace(/[^0-9]*/g, ''));
-                }}
-                sx={{
-                    maxWidth: 80,
+            <Switch
+                checked={increment}
+                onChange={() => {setIncrement(!increment)}}
+                slotProps={{
+                    input: { 'aria-label': 'controlled' },
                 }}
             />
-        ) : s.seq_size,
+        ) : (
+            <Switch
+                disabled
+                checked={increment}
+                slotProps={{
+                    input: { 'aria-label': 'controlled' },
+                }}
+            />
+        ),
         s.name === editSeq ? (
             <TextField
                 id="nextSeq"
@@ -261,38 +288,68 @@ function ComponentSequenceList() {
                     setNextSeq(val.replace(/[^0-9]*/g, ''));
                 }}
                 sx={{
-                    maxWidth: 80,
+                    maxWidth: 40,
                 }}
             />
         ) : s.next_seq,
         s.name === editSeq ? (
+            <>
             <Button
                 style={{
-                    maxWidth: '40px',
+                    maxWidth: '30px',
                     maxHeight: '25px',
                     minWidth: '30px',
-                    minHeight: '30px',
-                    marginLeft: '10px'
+                    minHeight: '25px',
+                    marginLeft: '0'
                 }}
                 variant="outlined"
                 onClick={handleSave}
             >
                 <SaveIcon />
             </Button>
-        ) : (
             <Button
                 style={{
-                    maxWidth: '40px',
+                    maxWidth: '30px',
                     maxHeight: '25px',
                     minWidth: '30px',
-                    minHeight: '30px',
-                    marginLeft:'10px'
+                    minHeight: '25px',
+                    marginLeft: '5px'
+                }}
+                variant="outlined"
+                onClick={handleCancel}
+            >
+                <CloseIcon />
+            </Button>
+            </>
+        ) : (
+            <>
+            <Button
+                style={{
+                    maxWidth: '30px',
+                    maxHeight: '25px',
+                    minWidth: '30px',
+                    minHeight: '25px',
+                    marginLeft:'0'
                 }}
                 variant="outlined"
                 onClick={() => handleEdit(s.name)}
             >
                 <EditIcon />
             </Button>
+            <Button
+                style={{
+                    maxWidth: '30px',
+                    maxHeight: '25px',
+                    minWidth: '30px',
+                    minHeight: '25px',
+                    marginLeft:'5px'
+                }}
+                variant="outlined"
+                onClick={() => handleDelete(s.name)}
+            >
+                <DeleteIcon />
+            </Button>
+            </>
         ),
     ]);
 
