@@ -1,7 +1,10 @@
 # https://flask.palletsprojects.com/en/2.0.x/quickstart/
 
 #from crypt import methods
-from re import split
+from copy import deepcopy
+from functools import partial
+import re
+from typing import Any, Callable, Dict, List, Tuple
 from flask import Flask, request, session
 from flask_session import Session
 import requests
@@ -2419,3 +2422,289 @@ def delete_sequence(name):
         return {'result': True}
     except Exception as e:
         return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/bulk_input", methods=['POST'])
+def bulk_input():
+    payload = request.json
+
+    ltf = payload.get('ltf', '')
+    timestamp = payload.get('time')
+    comments = payload.get('comments', '')
+
+    op_chars = {
+        '|': 'merge',
+        '>': 'connect',
+        '<>': 'replace',
+        '//': 'disconnect',
+        '<<': 'supercomponent',
+        '>>': 'subcomponent',
+    }
+    op_template = {
+        'component1': {
+            'name': '',
+            'attrs': [],
+        },
+        'operation': '',
+        'component2': {
+            'name': '',
+            'attrs': [],
+        },
+    }
+
+    # pre-process the LTF entry
+    ltf += '\n' # add a newline to ensure all regex commands work properly
+    ltf = re.sub(r"(?<![\w\.])[ \t]*#.*[\r\n]", "", ltf) # remove comments
+    ltf = re.sub(r"(?<![\w\.])[ \t]*\$\$.*", "", ltf) # $$ lines -> blank lines
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*[\r\n][ \t]*(?=[\.\+])", " | ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*[\r\n][ \t]*(?=\w)", " > ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?\/\/[ \t]*[\r\n]?(?=\w)", " // ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?<>[ \t]*[\r\n]?(?=\w)", " <> ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?>>[ \t]*[\r\n]?(?=\w)", " >> ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?<<[ \t]*[\r\n]?(?=\w)", " << ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?>[ \t]*[\r\n]?(?=\w)", " > ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*(?=[\r\n][ \t]*)(?!\w)", ";", ltf)
+    ltf = re.sub(r"(?<=[\w\.]);[ \t]*(?=\w)", ";\n", ltf)
+    ltf = re.sub(r"[ \t]+", " ", ltf) # replace all multi-spaces with a single
+    ltf = ltf.replace(" ;", ";") # ensure no space before semicolons
+    ltf = re.sub(r"(?<=[\w\.]);[ \t]*[\r\n][ \t]*(?!\w)", ";", ltf)
+
+    # process the ltf into operations
+    operations = []
+    operations : List[Dict[str, Dict[str, List[Tuple[str, str]] | str] | str]]
+    for i, line in enumerate(ltf.split('\n')):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.endswith(';'):
+            return {'error': (f"No semicolon in line {i} of ltf:\n{ltf}\n"
+                              f"This usually indicates a syntax format of "
+                              f"some kind, e.g. ending a line with an "
+                              f"operator like '>'.")}
+
+        elements = line.removesuffix(';').split(' ')
+        if elements[0] in op_chars:
+            return {'error': (f"Operations cannot begin with an operator! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if elements[-1] in op_chars:
+            return {'error': (f"Operations cannot end with an operator! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if '=' in elements[0]:
+            return {'error': (f"Operations cannot begin with an attribute! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if elements[0].startswith('.') or elements[0].startswith('+'):
+            return {'error': (f"The first element of multi-line entries "
+                              f"cannot begin with a wildcard. Line {i} of "
+                              f"ltf:\n{ltf}")}
+
+        op = deepcopy(op_template)
+        for j, el in enumerate(elements):
+            if el in op_chars and op['operation'] and op['component2']['name']:
+                # we've completed an operation so start a continuation op
+                operations.append(op)
+                new_op = deepcopy(op_template)
+                new_op['component1'] = op['component2']
+                op = new_op
+            if el in op_chars and op['operation']:
+                # this is back-to-back operations, so it's invalid
+                return {'error': (f"Cannot have two operators back-to-back! "
+                                  f"Line {i}, element {j} of ltf:\n{ltf}")}
+            elif el in op_chars:
+                # this is the operation type
+                op['operation'] = op_chars[el]
+            elif '=' in el:
+                # if there is an equal sign, this is an attribute
+                el = el.replace("+", " ") # spaces are encoded as + characters
+                if op['operation']:
+                    # we're on the second component if there's an operation
+                    if not op['component2']['name']:
+                        return {'error': (f"A component must be defined "
+                                          f"before attributes! Line {i}, "
+                                          f"element {j} of ltf:\n{ltf}")}
+                    op['component2']['attrs'].append(tuple(el.split('=')))
+                else:
+                    # if there's not yet an operation, we've already verified
+                    # that the line does not begin with an attribute
+                    op['component1']['attrs'].append(tuple(el.split('=')))
+            else:
+                # if not an operation or an attribute it should be a component
+                if op['operation'] and not op['component2']['name']:
+                    # just after the op, so this should be the 2nd component
+                    op['component2']['name'] = el
+                elif op['operation'] or op['component1']['name']:
+                    # e.g. ANT0000A > LNA0000A CXC0000A or ANT0000A LNA0000A
+                    # missing operator between two components
+                    return {'error': (f"Missing an operator between "
+                                      f"components! Line {i}, element {j} "
+                                      f"of ltf:\n{ltf}")}
+                else:
+                    # this should be the first component at this point
+                    op['component1']['name'] = el
+        operations.append(op)
+
+    # create a standard timestamp for all operations to use
+    tstamp = p.Timestamp(int(time.time()))
+
+    # permissions to use for all ops
+    perms = session.get('perms', [])
+
+    # process the operations with padloper
+    # Operations will be queued and run sequentially, with each operation
+    # consisting of component, a method to run on that component with getattr,
+    # and optional args/kwargs. The component can either be an instance of the
+    # Component class or the name of the component if it will be created in a
+    # previous step.
+    op_seq : List[Tuple[p.Component | str, str, List, Dict]] = []
+    for o, op in enumerate(operations):
+        # handle the merge operation first since we're not creating anything
+        if op['operation'] == 'merge':
+            c1 = op['component1']['name']
+            c2 = op['component2']['name']
+            if c2.startswith('+'):
+                # expand out the + to dots
+                for i in range(1, len(c1)-len(c2)+2):
+                    test = c2.replace('+', '.'*i)
+                    if all((ch1=='.')or(ch2=='.') for ch1,ch2 in zip(c1,test)):
+                        c2 = test
+                        break
+            if all((ch1 == '.') or (ch2 == '.') for ch1, ch2 in zip(c1, c2)):
+                # we have compatible merge strings
+                res = ''
+                for i in range(max(len(c1), len(c2))):
+                    if i < len(c1) and c1[i] != '.':
+                        res += c1[i]
+                    elif i < len(c2) and c2[i] != '.':
+                        res += c2[i]
+                    elif i < len(c1):
+                        res += c1[i]
+                    else:
+                        res += c2[i]
+            if not res:
+                return {'error': (f"Could not merge elements {c1} and "
+                                  f"{op['component2']['name']}!")}
+            if o+1 < len(operations):
+                operations[o+1]['component1']['name'] = res
+                c1_attrs = op['component1']['attrs']
+                new_attrs = operations[o+1]['component1']['attrs']
+                operations[o+1]['component1'].update({
+                    'attrs': c1_attrs + new_attrs
+                })
+            continue
+
+        # fetch or create operation's first component
+        c1, c1_exists = p.Component.fetch_or_create(op['component1']['name'],
+                                                    op['component1']['attrs'])
+        if c1 is None:
+            return {'error': (f"Component {op['component1']['name']} does not "
+                              f"yet exist in the database, and its component "
+                              f"type could not be identified! Please ensure "
+                              f"there is a valid sequence matching the "
+                              f"component or specify type=<some_type> as an "
+                              f"attribute on the component.")}
+
+        # queue the addition of the first component if we need to create it
+        if not c1_exists:
+            op_seq.append((c1, 'add', [], {'permissions': perms}))
+
+        # format properties as dictionary and remove component attributes
+        c1_props = dict(op['component1']['attrs'])
+        c1_props.pop('name', None)
+        c1_props.pop('type', None)
+        c1_props.pop('version', None)
+
+        if not op['operation']:
+            # i.e. we're just creating a component and/or adding props
+            continue
+
+        # fetch or create second component
+        c2, c2_exists = p.Component.fetch_or_create(op['component2']['name'],
+                                                    op['component2']['attrs'])
+        if c2 is None:
+            return {'error': (f"Component {op['component2']['name']} does not "
+                              f"yet exist in the database, and its component "
+                              f"type could not be identified! Please ensure "
+                              f"there is a valid sequence matching the "
+                              f"component or specify type=<some_type> as an "
+                              f"attribute on the component.")}
+
+        # queue the addition of the second component if we need to create it
+        if not c2_exists:
+            op_seq.append((c2, 'add', [], {'permissions': perms}))
+
+        # format properties as dictionary and remove component attributes
+        c2_props = dict(op['component2']['attrs'])
+        c2_props.pop('name', None)
+        c2_props.pop('type', None)
+        c2_props.pop('version', None)
+
+        # prep the component variables for addition to the operation sequence
+        # we'll use the Component objects if they exist, otherwise the names
+        comp1 = c1 if c1_exists else op['component1']['name']
+        comp2 = c2 if c2_exists else op['component2']['name']
+
+        # queue the addition of properties to component 1
+        # @TODO: add properties to nodes
+
+        # queue the addition of properties to component 2
+        # @TODO: add properties to nodes
+
+        # handle connection operation
+        if op['operation'] == 'connect':
+            op_seq.append((comp1, 'connect', [comp2, tstamp],
+                           {'permissions': perms}))
+            continue
+
+        # handle disconnect operation
+        if op['operation'] == 'disconnect':
+            op_seq.append((comp1, 'disconnect', [comp2, tstamp],
+                           {'permissions': perms}))
+            continue
+
+        # handle subcomponent (>>) operation
+        if op['operation'] == 'subcomponent':
+            op_seq.append((comp2, 'subcomponent_connect', [comp1],
+                           {'permissions': perms}))
+            continue
+
+        # handle supercomponent (<<) operation
+        if op['operation'] == 'supercomponent':
+            op_seq.append((comp1, 'subcomponent_connect', [comp2],
+                           {'permissions': perms}))
+            continue
+
+        # handle replace (<>) operation
+        if op['operation'] == 'replace':
+            op_seq.append((comp1, 'replace', [comp2],
+                           {'disable_time': tstamp, 'permissions': perms}))
+            continue
+
+    # execute the operations in sequence
+    created_components : Dict[str, p.Component] = {}
+    for comp, method, args, kwargs in op_seq:
+        if isinstance(comp, p.Component):
+            # this is the case if the component already exists in the database
+            component = comp
+        else:
+            # component was created in a previous step, so we need to fetch it
+            component = created_components.get(comp)
+
+        # replace component strings in the args
+        parsed_args = []
+        for arg in args:
+            if isinstance(arg, str) and arg in created_components:
+                parsed_args.append(created_components[arg])
+            else:
+                parsed_args.append(arg)
+
+        # fetch the operation on the component
+        operation = getattr(component, method)
+        operation : Callable[..., p.Component | None]
+
+        # execute the operation with the passed args and kwargs
+        res = operation(*parsed_args, **kwargs)
+        if isinstance(comp, str) and isinstance(res, p.Component):
+            created_components.update({comp: res})
+        elif isinstance(comp, p.Component) and isinstance(res, p.Component):
+            created_components.update({comp.name: res})
+
+    return {'result': True}

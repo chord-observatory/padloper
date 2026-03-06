@@ -4,6 +4,7 @@ _component_nodes.py
 Classes for manipulating components, component types and component versions.
 """
 import time
+from typing import List, Tuple
 import _global as g
 from gremlin_python.process.traversal import Order, P, T, Direction, Operator
 from gremlin_python.process.graph_traversal import __, constant
@@ -16,6 +17,7 @@ from _edges import RelationVersionAllowedType, RelationVersion,\
                    RelationProperty, RelationPropertyType,\
                    RelationFlagComponent, RelationConnection
 from _permissions import Permission, check_permission
+
 
 class ComponentType(Vertex):
     """
@@ -32,7 +34,7 @@ class ComponentType(Vertex):
     ]
     primary_attr: str = "name"
     name: str = "default"
-    # comments: str
+    comments: str | None
 
     @classmethod
     def get_names_of_types_and_versions(cls, permissions = None):
@@ -85,6 +87,11 @@ class ComponentVersion(Vertex):
     ]
     primary_attr: str = "name"
 
+    # define node attribute types for type-checking
+    name: str
+    comments: str | None
+    type: ComponentType  # @TODO: change this from a reserved word
+
     def __repr__(self):
         return f"{self.category}: {self.name}"
 
@@ -112,6 +119,11 @@ class Component(Vertex):
     ]
     primary_attr: str = "name"
 
+    # define node attribute types for type-checking
+    name: str
+    type: ComponentType  # @TODO: change this from a reserved word
+    version: ComponentVersion | None
+
     def __str__(self):
 
         if self.version is None:
@@ -123,6 +135,51 @@ class Component(Vertex):
         return f'Component of name "{self.name}", \
             type "{self.type.name}", \
             {version_text}, id {self.id()}'
+
+    @classmethod
+    def fetch_or_create(cls, name: str, attrs: List[Tuple[str, str]]):
+        # import here to avoid circular import issues
+        from _sequences import ComponentSequence
+
+        try:
+            component = cls.from_db(name)
+            return component, True
+        except NotInDatabase as _:
+            # ignore the error, and we'll try creating the component
+            in_db = False
+
+        # we'll first see if there's a component type listed in the attrs
+        if [(ctype := a[1]) for a in attrs if a[0] == 'type']:
+            try:
+                ctype = ComponentType.from_db(ctype)
+            except NotInDatabase as _:
+                ctype = None
+        else:
+            ctype = None
+
+        # if the component type isn't in attrs or wasn't in the database,
+        # we'll attempt to get it from sequence matching
+        if not ctype:
+            sequence = ComponentSequence.match(name)
+            if sequence:
+                ctype = sequence.component_type
+
+        # if we still can't find the component type, return None and False
+        if not ctype:
+            return None, in_db
+
+        # if creating a new component, check if a version is available
+        if [(cver := a[1]) for a in attrs if a[0] == 'version']:
+            try:
+                cver = ComponentVersion.from_db(cver)
+            except NotInDatabase as _:
+                # ignore the error since the version isn't required
+                cver = None
+        else:
+            cver = None
+
+        component = cls(name=name, type=ctype, version=cver)
+        return component, in_db
 
     def get_property(self, type, at_time: int, permissions = None):
         """
@@ -465,8 +522,8 @@ class Component(Vertex):
         )
 
         if current_property is not None:
-#    TODO: see if behaviour is correct (when this trips in
-#            init_simple-db.py).
+            # TODO: see if behaviour is correct (when this trips in
+            # init_simple-db.py).
             if current_property.values == property.values:
                 strictraise(strict_add, PropertyIsSameError,
                     "An identical property of type " +
@@ -475,12 +532,12 @@ class Component(Vertex):
                 )
                 return
 
-#            elif current_property.end.time != g._TIMESTAMP_NO_ENDTIME_VALUE:
-#                raise PropertyIsSameError(
-#                    "Property of type {property.type.name} for component "\
-#                    "{self.name} is already set at this time with an end "\
-#                    "time after this time."
-#                )
+            # elif current_property.end.time != g._TIMESTAMP_NO_ENDTIME_VALUE:
+            #     raise PropertyIsSameError(
+            #         "Property of type {property.type.name} for component "\
+            #         "{self.name} is already set at this time with an end "\
+            #         "time after this time."
+            #     )
             else:
                 # end that property.
                 self.unset_property(current_property, start,
@@ -1239,7 +1296,7 @@ class Component(Vertex):
 
         if not comp.in_db(strict_check=False, permissions=permissions):
             raise ComponentNotAddedError(
-                f"Component {comp.name} has not yet" +
+                f"Component {comp.name} has not yet " +
                 "been added to the database."
             )
 

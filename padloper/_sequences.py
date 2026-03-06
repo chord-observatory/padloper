@@ -4,6 +4,7 @@ _sequences.py
 Classes for setting up naming/numbering sequences for components.
 """
 
+import re
 import time
 from gremlin_python.process.traversal import Order, P, TextP, T, Direction
 from gremlin_python.process.graph_traversal import __, constant
@@ -25,6 +26,10 @@ class ComponentSequence(Vertex):
     labels. For other components, this stores the standard label sequence
     from the manufacturer or otherwise. The implementation of such sequence
     will be used to auto-populate the component type when scanned in.
+
+    Attributes
+    ----------
+    component_type : ComponentType
     """
 
     category: str = "sequence"
@@ -38,6 +43,12 @@ class ComponentSequence(Vertex):
     ]
     primary_attr: str = "name"
     name: str = "default"
+
+    # define node attribute types for type-checking
+    component_type: ComponentType
+    format: str  # @TODO: change this attribute from a reserved word
+    increment: bool
+    next_seq: int
 
     def _validate(self, **kwargs):
         return super()._validate(**kwargs)
@@ -73,3 +84,12 @@ class ComponentSequence(Vertex):
         # remove the node after removing the edges
         g.t.V(self.id()).drop().iterate()
         return
+
+    @classmethod
+    def match(cls, cname: str):
+        sequences = cls.get_list()
+        matches = [
+            seq for seq in sequences
+            if re.fullmatch(seq.format, cname)
+        ]
+        return matches[0] if matches else None
