@@ -12,9 +12,12 @@ charset-normalizer==2.1.1
 click==8.1.7
 exceptiongroup==1.2.0
 Flask==2.0.1
-Flask-Session==0.8.0
+# Flask-Session 0.8.0 requires Flask>=2.2, but we pin Flask==2.0.1.
+# Use an earlier Flask-Session version compatible with Flask 2.0.x.
+Flask-Session==0.4.0
+requests==2.31.0
 frozenlist==1.4.1
-gremlinpython==3.5.3
+gremlinpython==3.7.3
 gunicorn==22.0.0
 idna==3.6
 igraph==0.11.3

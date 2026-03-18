@@ -106,7 +106,8 @@ permissions_set = {
 
     # general
     'Flag;add',
-    'Flag;end_flag',
+    # Align with current API: Flag.set_end()
+    'Flag;set_end',
 }
 
 def check_permission(permission, class_name, method_name):

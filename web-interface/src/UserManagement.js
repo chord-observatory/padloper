@@ -8,6 +8,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableRow from '@mui/material/TableRow';
 import axios from 'axios';
+import { withBase, requireOkJson } from './paths.js';
 
 function UserManagementPage() {
     const [users, setUsers] = useState([]);
@@ -31,25 +32,32 @@ function UserManagementPage() {
     }, [selectedUser]);
 
     const fetchUsers = () => {
-       
+
         let input = '/api/get_user_list'
-        fetch(input).then(
-            res => res.json()
-            ).then(data => {
-                console.log(data)
+        fetch(withBase(input))
+            .then(requireOkJson)
+            .then(data => {
                 setUsers(data.result);
             })
+            .catch(err => {
+                console.error('Failed to load users:', err);
+                setUsers([]);
+            });
     };
 
     const fetchUserGroups = () => {
         // Mocking user groups data for demonstration
-       
+
         let input = '/api/get_user_group_list'
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
-            setUserGroups(data.result);
-        })
+        fetch(withBase(input))
+            .then(requireOkJson)
+            .then(data => {
+                setUserGroups(data.result);
+            })
+            .catch(err => {
+                console.error('Failed to load user groups:', err);
+                setUserGroups([]);
+            });
     };
 
     const handleUserSelect = (event, value) => {
@@ -69,12 +77,15 @@ function UserManagementPage() {
         let input = '/api/get_user_groups';
         input += `?username=${selectedUser.name}`
 
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
-            console.log(data);
-            setUserGroupAssociations(data.result);
-        })
+        fetch(withBase(input))
+            .then(requireOkJson)
+            .then(data => {
+                setUserGroupAssociations(data.result);
+            })
+            .catch(err => {
+                console.error('Failed to load user group associations:', err);
+                setUserGroupAssociations([]);
+            });
 
     };
 
@@ -91,13 +102,12 @@ function UserManagementPage() {
             const formData = new FormData();
             formData.append('user', selectedUser.name);
             formData.append('group', selectedUserGroups.map(obj => obj.name).join(";"));
-            console.log(formData)
-             const requestOptions = {
-                method: 'POST', 
+            const requestOptions = {
+                method: 'POST',
                 body: formData
-              };
-            fetch(input, requestOptions)
-              .then(res => res.json())
+            };
+            fetch(withBase(input), requestOptions)
+              .then(requireOkJson)
               .then(data => {
                 console.log("res", data);
               })

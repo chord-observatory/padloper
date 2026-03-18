@@ -9,6 +9,7 @@ from gremlin_python.process.graph_traversal import GraphTraversalSource
 import gremlin_python.structure.graph as gremlin_graph
 from gremlin_python.driver.driver_remote_connection \
         import DriverRemoteConnection
+from gremlin_python.driver.serializer import GraphSONSerializersV3d0
 
 _conn: DriverRemoteConnection
 
@@ -36,12 +37,12 @@ _user = None
 
 
 def start_connection(host: str = "ws://localhost", port: int=8182, traversal_source: str='g') -> None:
-    """Start a connection with janusgraph with port :param port: 
+    """Start a connection with janusgraph with port :param port:
     with traversal source :traversal_source:.
 
     :param port: The port to connect to on localhost, defaults to 8182
     :type port: int, optional
-    :param traversal_source: The serverside traversal source to query, 
+    :param traversal_source: The serverside traversal source to query,
     defaults to 'g' (don't change this unless you also change it serverside)
     :type traversal_source: str, optional
     """
@@ -50,8 +51,9 @@ def start_connection(host: str = "ws://localhost", port: int=8182, traversal_sou
     global t
 
     _conn = DriverRemoteConnection(
-        f'{host}:{port}/gremlin', 
-        traversal_source
+        f'{host}:{port}/gremlin',
+        traversal_source,
+        message_serializer=GraphSONSerializersV3d0()
     )
 
     t = _graph.traversal().withRemote(_conn)

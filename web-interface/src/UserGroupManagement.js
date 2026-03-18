@@ -3,6 +3,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Modal from '@mui/material/Modal';
+import { withBase, requireOkJson } from './paths.js';
 
 function UserGroupManagementPage() {
     const [userGroups, setUserGroups] = useState([]);
@@ -20,23 +21,30 @@ function UserGroupManagementPage() {
     const fetchUserGroups = () => {
         // Make API call to fetch user groups
         let input = '/api/get_user_group_list'
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
-            console.log(data.result)
+        fetch(withBase(input))
+          .then(requireOkJson)
+          .then(data => {
             setUserGroups(data.result);
-        })
+          })
+          .catch(err => {
+            console.error('Failed to load user groups:', err);
+            setUserGroups([]);
+          });
     };
 
     const fetchPermissionsForGroup = (group) => {
         // Make API call to fetch permissions for the selected user group
         // Fetch all permissions from API
         let input = '/api/get_all_permissions'
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(input))
+          .then(requireOkJson)
+          .then(data => {
             setPermissions(data.result.filter(item => !group.permissions.includes(item)));
-        })
+          })
+          .catch(err => {
+            console.error('Failed to load permissions:', err);
+            setPermissions([]);
+          });
     };
 
     const handleUserGroupSelect = (event, value) => {
@@ -61,11 +69,15 @@ function UserGroupManagementPage() {
 
         // Fetch all permissions from API
         let input = '/api/get_all_permissions'
-        fetch(input).then(
-            res => res.json()
-        ).then(data => {
+        fetch(withBase(input))
+          .then(requireOkJson)
+          .then(data => {
             setPermissions(data.result);
-        })
+          })
+          .catch(err => {
+            console.error('Failed to load permissions:', err);
+            setPermissions([]);
+          });
     };
 
     const handleCloseModal = () => {
@@ -75,24 +87,24 @@ function UserGroupManagementPage() {
 
     const handleCreateGroup = () => {
         // Make API call to create new user group with selected permissions
-        
+
         let input = '/api/new_usergroup';
         const formData = new FormData();
         formData.append('name', newGroupName);
         formData.append('permissions', selectedPermissions.join(";"));
         const requestOptions = {
-            method: 'POST', 
+            method: 'POST',
             body: formData
         };
-        fetch(input, requestOptions)
-          .then(res => res.json())
+        fetch(withBase(input), requestOptions)
+          .then(requireOkJson)
           .then(data => {
             console.log("res", data);
           })
           .catch(err => {
             console.error("Err:", err);
           })
-        
+
 
         // Close modal after creating group
         setOpenModal(false);

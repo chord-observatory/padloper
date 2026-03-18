@@ -1,7 +1,10 @@
 # https://flask.palletsprojects.com/en/2.0.x/quickstart/
 
 #from crypt import methods
-from re import split
+from copy import deepcopy
+from functools import partial
+import re
+from typing import Any, Callable, Dict, List, Tuple
 from flask import Flask, request, session
 from flask_session import Session
 import requests
@@ -10,23 +13,27 @@ from gremlin_python.process.traversal import TextP
 from markupsafe import escape
 import time
 import padloper as p
+from padloper import _global as p_global
 import json
 import os
 from datetime import datetime
 from urllib.parse import unquote
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # The flask application
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
 
-# set this to the oauth-proxy-server URL
-PROXY_SERVER_URL = 'http://localhost:4000/'
+# Read configuration from environment, with sensible defaults for local dev
+PROXY_SERVER_URL = os.getenv('PROXY_SERVER_URL', 'http://oauth-proxy-server:4000/')
 
 # Set up session: we use flask_session because the default Flask session is
 # client size and we don't want to expose permissions there; here we use a
 # server-side configuration.
 app.config["SESSION_TYPE"] = "filesystem"
-app.config["SECRET_KEY"] = "qkt9arv@gdb6AER@cxf"
+# Prefer SECRET_KEY, fallback to FLASK_SECRET_KEY, finally a dev default
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", os.getenv("FLASK_SECRET_KEY", "change-me"))
 
 #CONTINUE HERE: test user authentication.
 def tmp_timestamp(t, uid, comments):
@@ -56,7 +63,7 @@ def read_filters(filters):
         return None
 
 def parse_filters(filtstr, attrs, funcs):
-    """Return a list of dictionaries as specified by the `filters` parameter of 
+    """Return a list of dictionaries as specified by the `filters` parameter of
     Vertex.get_list()"""
     ret = []
     if filtstr is not None and filtstr != "":
@@ -74,18 +81,35 @@ def parse_filters(filtstr, attrs, funcs):
 # @app.route("/api/s_id/<id>")
 # def get_component_by_id(id):
 #     return str(Component.from_id(escape(id)))
-    
+
 def set_perms(username):
-    """ Get user permissions from the database, and set as a sessions variable. 
+    """ Get user permissions from the database, and set as a sessions variable.
     """
-    print("------------------")
-    print(username)
+    # Cache user in session and compute permissions from DB
+    session['user'] = username
     user = p.User.from_db(username)
     perms = user.get_permissions()
     if perms:
         session['perms'] = perms
     else:
         session['perms'] = []
+
+
+@app.before_request
+def _ensure_padloper_user():
+    """Ensure padloper has the current user set for write auditing.
+
+    Many padloper write operations stamp uid/time and require an active user.
+    We set it here per request if available from the session.
+    """
+    try:
+        uname = session.get('user')
+        if uname:
+            p.set_user(uname)
+    except Exception:
+        # Do not block requests if user lookup fails; handlers will raise
+        # appropriate errors on protected/write operations.
+        pass
 
 
 @app.route("/api/login", methods=['POST'])
@@ -107,7 +131,7 @@ def login():
 
         if not username or not access_token:
             return ({'error': 'Username and access token are required'}), 400
-        
+
         headers = {'Authorization': 'Bearer ' + access_token}
         response = requests.get(PROXY_SERVER_URL + 'getUserData', headers=headers)
 
@@ -115,7 +139,40 @@ def login():
             data = response.json()
 
             if data.get('login') == username:
+                # Ensure a User vertex exists for this GitHub login. If not,
+                # create it with no groups, ensure a 'readonly' group (no perms),
+                # and add the user to that group. Stamp the write with the user.
+                try:
+                    user_obj = p.User.from_db(username)
+                except Exception:
+                    try:
+                        # Minimal stub for uid stamping during creation
+                        p_global._user = type("_LoginStub", (), {"name": username})()
+                        user_obj = p.User(name=username, groups=[])
+                        user_obj.add(permissions=[])
+
+                        # Ensure a 'readonly' group (no permissions) exists,
+                        # then add the new user to it.
+                        try:
+                            default_group = p.UserGroup.from_db('readonly')
+                        except Exception:
+                            default_group = p.UserGroup(name='readonly', permissions=[])
+                            default_group.add(permissions=[])
+                        try:
+                            user_obj.add_group(default_group)
+                        except Exception:
+                            # If already in group or any non-fatal issue, continue
+                            pass
+                    finally:
+                        # Clear stub; a proper user will be set below
+                        p_global._user = None
+
+                # Establish session perms and set current user for this process
                 set_perms(username)
+                try:
+                    p.set_user(username)
+                except Exception:
+                    pass
                 return ({'message': f'Logged in as {username}'}), 200
             else:
                 return ({'error': 'Username does not match'}), 401
@@ -130,7 +187,7 @@ def login():
         print(e)
 
         return {'error': json.dumps(e, default=str)}, 401
-    
+
 
 @app.route("/api/logout", methods=['POST'])
 def logout():
@@ -140,33 +197,99 @@ def logout():
     effectively logging the user out.
     """
     session.clear()
+    # Clear padloper user so subsequent requests don’t inherit stale identity
+    try:
+        p_global._user = None
+    except Exception:
+        pass
 
     return ({'message': 'Logged out successfully'}), 200
 
 
-@app.route("/api/components_name/<name>")
+@app.route("/api/components_name/<path:name>")
 def get_component_by_name(name):
-    """Given a name of a component, return a dictionary containing the
-    dictionary representation of the component in its 'result' field.
+    """Given a name of a component, return its dictionary representation.
+
+    Returns {'result': {...}} on success or {'error': '...'} on failure
+    instead of a 500, so clients can handle gracefully (e.g., when the
+    component is not found).
+    """
+    try:
+        comp = p.Component.from_db(str(escape(name)))
+        data = comp.as_dict(permissions=session.get('perms', []))
+
+        # Normalize embedded Flag objects for UI compatibility
+        flags = data.get('flags', []) or []
+        for f in flags:
+            # Ensure 'name' and 'comments' exist; map from 'notes'
+            if 'name' not in f and 'notes' in f:
+                f['name'] = f['notes']
+            if 'comments' not in f:
+                f['comments'] = f.get('notes', '')
+
+            # Flatten start/end Timestamp convenience fields expected by UI
+            s = f.get('start')
+            if s is not None:
+                try:
+                    f['start_time'] = s.get('time') if isinstance(s, dict) else s.time
+                    f['start_uid'] = s.get('uid') if isinstance(s, dict) else s.uid
+                    f['start_edit_time'] = s.get('edit_time') if isinstance(s, dict) else s.edit_time
+                    f['start_comments'] = s.get('comments') if isinstance(s, dict) else s.comments
+                except Exception:
+                    pass
+            e = f.get('end')
+            if e is not None:
+                try:
+                    f['end_time'] = e.get('time') if isinstance(e, dict) else e.time
+                    f['end_uid'] = e.get('uid') if isinstance(e, dict) else e.uid
+                    f['end_edit_time'] = e.get('edit_time') if isinstance(e, dict) else e.edit_time
+                    f['end_comments'] = e.get('comments') if isinstance(e, dict) else e.comments
+                except Exception:
+                    pass
+
+        return {'result': data}
+    except Exception as e:
+        print(e)
+        # Distinguish not-found from other errors when possible
+        try:
+            from padloper._exceptions import NotInDatabase
+            if isinstance(e, NotInDatabase):
+                return {'error': json.dumps(e, default=str)}, 404
+        except Exception:
+            pass
+        return {'error': json.dumps(e, default=str)}, 400
+
+
+@app.route("/api/components_tree/<name>/<depth>/<time>")
+def components_tree(name, depth, time):
+    """Given a component name, time to check, and a depth, trace the graph
+    and return nodes and edges within the given depth at the given time.
 
     :param name: The component name
     :type name: str
-    :return: Return a dictionary with a key/value pair of 'result' and the
-    dictionary representation of the component with said name
+    :param depth: The search depth
+    :type depth: int
+    :param time: The unix timestamp in seconds
+    :type time: int
+
+    :return: Return a dictionary of 'result' with nodes and edges
     :rtype: dict
     """
-    return {
-        'result': p.Component.from_db(str(escape(name)),
-                                      permissions=session.get('perms'))\
-                   .as_dict(permissions=session.get('perms'))
-    }
+    try:
+        component = p.Component.from_db(str(escape(name)))
+        res = {
+            'result': component.get_network(int(depth), int(time))
+        }
+        return res
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/component_list")
 def get_component_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component in the desired list.
 
     The URL parameters are:
@@ -208,12 +331,8 @@ def get_component_list():
         # extract the filters
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [TextP.containing, lambda x: x, lambda x: x])
-
-        # make sure that the range bounds only consist of a min/max, and that
-        # the order direction is either asc or desc.
-        assert len(range_bounds) == 2
-        assert order_direction in {'asc', 'desc'}
+                            [lambda x: TextP("regex", f"(?i){x}"),
+                             lambda x: x, lambda x: x])
 
         # make sure that the range bounds only consist of a min/max, and that
         # the order direction is either asc or desc.
@@ -225,13 +344,13 @@ def get_component_list():
             order_by=[(order_by, order_direction)],
             filters=filt,
         )
-    
+
         return {'result': [c.as_dict(bare=True) for c in components]}
 
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
 
 
 @app.route("/api/set_component_type", methods=['POST'])
@@ -247,7 +366,7 @@ def set_component_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -258,7 +377,7 @@ def set_component_type():
         component_type = p.ComponentType(name=val_name, comments=val_comments)
 
 
-        component_type.add(permissions=session.get('perms'))
+        component_type.add(permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -283,7 +402,7 @@ def replace_component_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -298,7 +417,7 @@ def replace_component_type():
         # Gets the old component type from the database.
         component_type_old = p.ComponentType.from_db(val_component_type)
 
-        component_type_old.replace(component_type_new, permissions=session.get('perms'))
+        component_type_old.replace(component_type_new, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -322,7 +441,7 @@ def set_component_version():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -338,7 +457,7 @@ def set_component_version():
         component_version = p.ComponentVersion(
             name=val_name, type=component_type, comments=val_comments)
 
-        component_version.add(permissions=session.get('perms'))
+        component_version.add(permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -366,7 +485,7 @@ def replace_component_version():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     return {'error': "This routine is broken … " +
@@ -395,7 +514,7 @@ def replace_component_version():
         component_version_old = p.ComponentVersion.from_db(
             val_component_version)
 
-        component_version_old.replace(component_version_new, permissions=session.get('perms'))
+        component_version_old.replace(component_version_new, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -419,7 +538,7 @@ def set_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -427,7 +546,7 @@ def set_component():
         val_type = escape(request.args.get('type'))
         val_version = escape(request.args.get('version'))
 
-        # Query the database and return the ComponentType instance based on the 
+        # Query the database and return the ComponentType instance based on the
         # component type name.
 
         component_type = p.ComponentType.from_db(primary_attr=val_type)
@@ -444,7 +563,7 @@ def set_component():
             # Need to initialize an instance of a component first.
             component = p.Component(name=name, type=component_type,
                                     version=component_version)
-            component.add(permissions=session.get('perms'))
+            component.add(permissions=session.get('perms', []))
 
 
         return {'result': True}
@@ -470,11 +589,10 @@ def replace_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
-        raise Exception("replace error")
         val_name = escape(request.args.get('name'))
         val_type = escape(request.args.get('type'))
         val_version = escape(request.args.get('version'))
@@ -485,10 +603,21 @@ def replace_component():
         component_type = p.ComponentType.from_db(val_type)
 
         # Query the database and return the ComponentVersion instance based on
-        # component version name and component type name.
+        # component version name and component type name. The current API
+        # accepts only a primary attribute; filter by type explicitly.
         if val_version:
-            component_version = p.ComponentVersion.from_db(val_version,
-                                                           component_type)
+            matches = p.ComponentVersion.get_list(
+                filters={"name": val_version, "type": val_type}
+            )
+            if len(matches) == 0:
+                raise Exception(
+                    f"ComponentVersion not found for name '{val_version}' and type '{val_type}'."
+                )
+            if len(matches) > 1:
+                raise Exception(
+                    f"Multiple ComponentVersions found for name '{val_version}' and type '{val_type}'."
+                )
+            component_version = matches[0]
         else:
             component_version = None
 
@@ -496,7 +625,7 @@ def replace_component():
         component_new = p.Component(name=val_name, type=component_type,
                                     version=component_version)
         component_old = p.Component.from_db(val_component)
-        component_old.replace(component_new, permissions=session.get('perms'))
+        component_old.replace(component_new, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -515,7 +644,7 @@ def disable_component():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -553,7 +682,7 @@ def set_property_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -570,14 +699,14 @@ def set_property_type():
         # on component type name.
         for name in val_type:
             allowed_list.append(p.ComponentType.from_db(name))
-        
+
         # Need to initialize an instance of a property type first.
-        property_type = p.PropertyType(name=val_name, units=val_units, 
+        property_type = p.PropertyType(name=val_name, units=val_units,
                                        allowed_regex=val_allowed_reg,
-                                       n_values=int(val_values), 
+                                       n_values=int(val_values),
                                        allowed_types=allowed_list,
                                        comments=val_comments)
-        property_type.add(permissions=session.get('perms'))
+        property_type.add(permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -611,7 +740,7 @@ def replace_property_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -635,13 +764,13 @@ def replace_property_type():
         for name in val_type:
             allowed_list.append(p.ComponentType.from_db(name))
         # Need to initialize an instance of a property type first.
-        property_type_new = p.PropertyType(name=val_name, units=val_units, 
+        property_type_new = p.PropertyType(name=val_name, units=val_units,
                                            allowed_regex=val_allowed_reg,
-                                           n_values=int(val_values), 
+                                           n_values=int(val_values),
                                            allowed_types=allowed_list,
                                            comments=val_comments)
         property_type_old = p.PropertyType.from_db(val_property_type)
-        property_type_old.replace(property_type_new, permissions=session.get('perms'))
+        property_type_old.replace(property_type_new, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -652,7 +781,7 @@ def replace_property_type():
 
 @app.route("/api/component_count")
 def get_component_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
+    """Given a URL parameter 'filters', return a dictionary with a value
     'result' and corresponding value being the number of components that satisfy
     said filters.
 
@@ -661,14 +790,15 @@ def get_component_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of components that satisfy the filters. 
+    the number of components that satisfy the filters.
     :rtype: dict
     """
     try:
 
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [TextP.containing, lambda x: x, lambda x: x])
+                            [lambda x: TextP("regex", f"(?i){x}"),
+                             lambda x: x, lambda x: x])
 
         return {'result': p.Component.get_count(filters=filt)}
 
@@ -679,37 +809,44 @@ def get_component_count():
 
 @app.route("/api/component_types_and_versions")
 def get_component_types_and_versions():
-    """Return a dictionary with a value 'result' and corresponding value 
+    """Return a dictionary with a value 'result' and corresponding value
     being a list of all the component types and their corresponding versions.
 
-    # TODO: This should ideally never, ever be used. Querying every type and 
+    # TODO: This should ideally never, ever be used. Querying every type and
     # corresponding version is a very bad idea. In the web interface, instead
     of fetching this URL, create a ComponentTypeAutocomplete and
     ComponentVersionAutocomplete that will query the limited component list
     that has a min/max range instead.
 
-    :return: A dictionary with a value 'result' and corresponding value 
+    :return: A dictionary with a value 'result' and corresponding value
     being a list of all the component types and their corresponding versions.
     :rtype: dict
     """
-
-    types = p.ComponentType.get_names_of_types_and_versions(permissions=session.get('perms'))
-    ret = {}
-    for t in types:
-        ret[t["name"]] = t["versions"]
-    return {'result': ret}
+    try:
+        types = p.ComponentType.get_names_of_types_and_versions(permissions=session.get('perms', []))
+        ret = {}
+        for t in types:
+            # Defensive: ensure expected keys exist and are JSON-serializable
+            name = t.get("name") or t.get("type")
+            versions = t.get("versions", [])
+            if name is not None:
+                ret[str(name)] = list(versions)
+        return {'result': ret}
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/component_type_list")
 def get_component_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'nameSubstring', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'nameSubstring', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component type in the desired list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component type to be
+    considered in the list and the second integer denotes the last component
     type to be shown in the list.
 
     orderBy - the field to order the component type list by, a string.
@@ -742,14 +879,14 @@ def get_component_type_list():
         order_by=[(order_by, order_direction)],
         filters=[{"name": TextP.containing(name_substring)}]
     )
-    
+
     return {"result": [t.as_dict() for t in types]}
 
 
 @app.route("/api/component_type_count")
 def get_component_type_count():
-    """Given a URL parameter 'nameSubstring', return a dictionary with a value 
-    'result' and corresponding value being the number of component types that 
+    """Given a URL parameter 'nameSubstring', return a dictionary with a value
+    'result' and corresponding value being the number of component types that
     have said substring in their name.
 
     nameSubstring - substring of the name of component types to consider.
@@ -767,16 +904,16 @@ def get_component_type_count():
 
 @app.route("/api/component_version_list")
 def get_component_version_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     component version in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component version to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component version to be
+    considered in the list and the second integer denotes the last component
     to be shown in the list.
 
     orderBy - the field to order the component version list by.
@@ -784,12 +921,12 @@ def get_component_version_list():
     orderDirection - either "asc" or "desc" for ascending/descending,
     respectively.
 
-    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of 
+    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of
     two-tuples of strings with the tuples separated by semicolons and the
     tuples' contents separated by commas.
 
     :return: A dictionary containing a key 'result' with its corresponding value
-    being an array of dictionary representations of each component version 
+    being an array of dictionary representations of each component version
     in the desired list.
     :rtype: dict
     """
@@ -798,8 +935,10 @@ def get_component_version_list():
     order_direction = escape(request.args.get('orderDirection'))
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "type"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "type"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     range_bounds = tuple(map(int, list_range.split(';')))
 
@@ -812,13 +951,13 @@ def get_component_version_list():
         order_by=[(order_by, order_direction)],
         filters=filt
     )
-    
+
     return {"result": [v.as_dict() for v in vers]}
 
 @app.route("/api/component_version_count")
 def get_component_version_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of component types that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of component types that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -826,21 +965,23 @@ def get_component_version_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of components that satisfy the filters. 
+    the number of components that satisfy the filters.
     :rtype: dict
     """
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "type"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "type"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     return {'result': p.ComponentVersion.get_count(filters=filt)}
 
 
 @app.route("/api/property_type_count")
 def get_property_type_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of property types that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of property types that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -848,13 +989,15 @@ def get_property_type_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of property type that satisfy the filters. 
+    the number of property type that satisfy the filters.
     :rtype: dict
     """
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "allowed_types"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "allowed_types"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     return {
         'result': p.PropertyType.get_count(filters=filt)
@@ -863,16 +1006,16 @@ def get_property_type_count():
 
 @app.route("/api/property_type_list")
 def get_property_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     property type in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first property type to be 
-    considered in the list and the second integer denotes the last property type 
+    where the first integer denotes the index first property type to be
+    considered in the list and the second integer denotes the last property type
     to be shown in the list.
 
     orderBy - the field to order the property type list by.
@@ -880,12 +1023,12 @@ def get_property_type_list():
     orderDirection - either "asc" or "desc" for ascending/descending,
     respectively.
 
-    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of 
+    filters - of the form "<str>,<str>;...;<str>,<str>", consisting of
     two-tuples of strings with the tuples separated by semicolons and the
     tuples' contents separated by commas.
 
     :return: A dictionary containing a key 'result' with its corresponding value
-    being an array of dictionary representations of each property type 
+    being an array of dictionary representations of each property type
     in the desired list.
     :rtype: dict
 
@@ -895,8 +1038,10 @@ def get_property_type_list():
     order_direction = escape(request.args.get('orderDirection'))
 
     filters = request.args.get('filters')
-    filt = parse_filters(filters, ["name", "allowed_types"],
-                         [TextP.containing, lambda x: x])
+    filt = parse_filters(
+        filters, ["name", "allowed_types"],
+        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+    )
 
     range_bounds = tuple(map(int, list_range.split(';')))
 
@@ -938,7 +1083,7 @@ def set_component_property():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -964,7 +1109,7 @@ def set_component_property():
 
         t = tmp_timestamp(val_time, val_uid, val_comments)
         component.set_property(property, start=t,
-                               permissions=session.get('perms')) 
+                               permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1020,11 +1165,11 @@ def end_component_property():
         component.unset_property(property, t)
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
 
 @app.route("/api/component_replace_property")
 def replace_component_property():
@@ -1036,7 +1181,7 @@ def replace_component_property():
 
     name - the name of the component to replace the property for.
 
-    propertyType - the name of the property type of the property. 
+    propertyType - the name of the property type of the property.
     This attribute remains same for both the old and the new property.
 
     time - the UNIX time for when the new property is set.
@@ -1076,9 +1221,9 @@ def replace_component_property():
         t = tmp_timestamp(val_time, val_uid, val_comments)
 
         component.replace_property(propertyTypeName=val_property_type,
-                                property=property_new, at_time=val_time, 
+                                property=property_new, at_time=val_time,
                                 uid=val_uid, start=t, comments=val_comments,
-                                permissions=session.get('perms'))
+                                permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1101,11 +1246,11 @@ def disable_component_property():
 
         component.disable_property(
             propertyTypeName=val_property_type,
-            permissions=session.get('perms')
+            permissions=session.get('perms', [])
         )
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1136,7 +1281,7 @@ def add_component_connection():
     :return: Return a dictionary with a key 'result' and value being a boolean
     that is True if and only if the components were not already connected
     beforehand, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1147,24 +1292,24 @@ def add_component_connection():
         val_comments = escape(request.args.get('comments'))
         val_replace_time = escape(request.args.get('replace_time'))
         val_end_time = escape(request.args.get('end_time'))
-        
+
         c1, c2 = p.Component.from_db(val_name1), p.Component.from_db(val_name2)
         t = tmp_timestamp(val_time, val_uid, val_comments)
 
         if val_replace_time == 'None':
-            c1.connect(c2, t, to_replace=None, permissions=session.get("perms"))
-        
+            c1.connect(c2, t, to_replace=None, permissions=session.get("perms", []))
+
         else:
             # get existing connection object
-            connections = c1.get_connections(comp=c2, at_time=val_replace_time)             
+            connections = c1.get_connections(comp=c2, at_time=val_replace_time)
 
             if val_end_time == 'None':
                 c1.connect(c2, t, to_replace=connections[0],
-                           permissions=session.get("perms"))
+                           permissions=session.get("perms", []))
             else:
                 end_t = tmp_timestamp(val_end_time, val_uid, val_comments)
                 c1.connect(c2, t, end_t, to_replace=connections[0],
-                           permissions=session.get("perms"))
+                           permissions=session.get("perms", []))
 
         return {'result': True}
 
@@ -1211,12 +1356,12 @@ def end_component_connection():
         try:
             t = tmp_timestamp(val_time, val_uid, val_comments)
             print("trying to disconnect....")
-            c1.disconnect(c2, t, permissions=session.get('perms'))
+            c1.disconnect(c2, t, permissions=session.get('perms', []))
         except p.ComponentsAlreadyDisconnectedError:
             already_disconnected = True
 
         return {'result': not already_disconnected}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1225,7 +1370,7 @@ def end_component_connection():
 @app.route("/api/component_disable_connection")
 def disable_component_connection():
     """Given the names of the two components to disable the connection between,
-    and the time at which the connection was created, disable the connection between 
+    and the time at which the connection was created, disable the connection between
     the two components.
 
     The URL parameters are:
@@ -1236,7 +1381,7 @@ def disable_component_connection():
 
     start_time - the time at which the connection was started
     """
-    try: 
+    try:
         val_name1 = escape(request.args.get('name1'))
         val_name2 = escape(request.args.get('name2'))
         time = escape(request.args.get('start_time'))
@@ -1246,7 +1391,7 @@ def disable_component_connection():
         connections = c1.get_connections(comp=c2, at_time=time)
         if len(connections) > 1:        # this shouldn't happen
             # add to error message this is really broken
-            raise Exception(f"Multiple connections exist between {val_name1} and {val_name2}" 
+            raise Exception(f"Multiple connections exist between {val_name1} and {val_name2}"
                 + f" at start time {datetime.fromtimestamp(int(time))}."
                 + "Something went very wrong, please contact a maintainer!")
 
@@ -1257,9 +1402,9 @@ def disable_component_connection():
                 + "Something went very wrong, please contact a maintainer!")
         else:
             connections[0].disable()        # disable the connection
-            
+
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1267,7 +1412,7 @@ def disable_component_connection():
 
 @app.route("/api/get_connections")
 def get_connections():
-    """Given a component name and a time to check all connections, return all 
+    """Given a component name and a time to check all connections, return all
     connections of the component at a certain time in dictionary format.
 
     The URL parameters are:
@@ -1294,9 +1439,7 @@ def get_connections():
             {
                 'inVertex': conn.inVertex.as_dict(),
                 'outVertex': conn.outVertex.as_dict(),
-                'subcomponent': True if isinstance(conn,
-                                                   p.RelationSubcomponent) \
-                                else False,
+                'subcomponent': isinstance(conn, p.RelationSubcomponent),
                 'id': conn.id(),
             }
             for conn in connections
@@ -1356,11 +1499,8 @@ def add_component_subcomponent():
         already_subcomponent = False
 
         try:
-            c1.subcomponent_connect(
-                component=c2,
-                permissions=session.get('perms')
-            )
-        except ComponentAlreadySubcomponentError:
+            c1.subcomponent_connect(c2, permissions=session.get('perms', []))
+        except p.ComponentAlreadySubcomponentError:
             already_subcomponent = True
 
         return {'result': not already_subcomponent}
@@ -1385,17 +1525,17 @@ def disable_component_subcomponent():
     that is True.
     :rtype: dict
     """
-    try: 
+    try:
         raise Exception(f"disable subcomponent error")
         val_name1 = escape(request.args.get('name1'))
         val_name2 = escape(request.args.get('name2'))
 
         c1, c2 = p.Component.from_db(val_name1), p.Component.from_db(val_name2)
         c1.disable_subcomponent(otherComponent=c2,
-                                permissions=session.get('perms'))
+                                permissions=session.get('perms', []))
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1413,7 +1553,7 @@ def set_flag_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1421,9 +1561,9 @@ def set_flag_type():
         val_name = escape(request.args.get('name'))
         val_comments = escape(request.args.get('comments'))
 
-        # Need to initialize an instance of a component version first.
-        flag_type = p.FlagType(val_name, val_comments)
-        flag_type.add(permissions=session.get('perms'))
+        # Create a FlagType with proper keyword args
+        flag_type = p.FlagType(name=val_name, comments=val_comments)
+        flag_type.add(permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1447,7 +1587,7 @@ def replace_flag_type():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1458,7 +1598,7 @@ def replace_flag_type():
         # Need to initialize an instance of a flag type first.
         flag_type_new = p.FlagType(name=val_name, comments=val_comments)
         flag_type_old = p.FlagType.from_db(val_flag_type)
-        flag_type_old.replace(flag_type_new, permissions=session.get('perms'))
+        flag_type_old.replace(flag_type_new, permissions=session.get('perms', []))
         return {'result': True}
 
     except Exception as e:
@@ -1480,12 +1620,12 @@ def set_flag_severity():
     try:
         val_name = escape(request.args.get('name'))
 
-        # Need to initialize an instance of a component version first.
-        flag_severity = p.FlagSeverity(val_name)
-        flag_severity.add(permissions=session.get('perms'))
+        # Create a FlagSeverity with proper keyword args
+        flag_severity = p.FlagSeverity(name=val_name)
+        flag_severity.add(permissions=session.get('perms', []))
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1503,7 +1643,7 @@ def replace_flag_severity():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
         val_flag_severity = escape(request.args.get('flag_severity'))
 
@@ -1511,7 +1651,7 @@ def replace_flag_severity():
         flag_severity_new = p.FlagSeverity(val_name)
         flag_severity_old = p.FlagSeverity.from_db(val_flag_severity)
         flag_severity_old.replace(flag_severity_new,
-                                  permissions=session.get('perms'))
+                                  permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1544,7 +1684,7 @@ def set_flag():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1560,7 +1700,7 @@ def set_flag():
             request.args.get('components')).split(';')
 
         severity = p.FlagSeverity.from_db(val_severity)
-        type = p.FlagType.from_db(val_type)
+        flag_type = p.FlagType.from_db(val_type)
 
         allowed_list = []
         # Query the database and return a list of Component instances based on
@@ -1575,10 +1715,14 @@ def set_flag():
             end = tmp_timestamp(val_end_time, val_uid, val_start_comments)
         else:
             end = None
-        flag = p.Flag(val_name, start, severity, type, 
-                      comments=val_comments, end=end,
+        # Store the display name in 'notes' since Flag has no 'name' attr
+        flag = p.Flag(type=flag_type,
+                      severity=severity,
+                      notes=val_name,
+                      start=start,
+                      end=end,
                       components=allowed_list)
-        flag.add(permissions=session.get('perms'))
+        flag.add(permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1604,16 +1748,22 @@ def unset_flag():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
         val_uid = escape(request.args.get('uid'))
         val_end_time = escape(request.args.get('end_time'))
         val_comments = escape(request.args.get('comments'))
 
-        # Need to initialize an instance of Flag first.
-        flag = p.Flag.from_db(val_name)
+        # Lookup flag by its display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_name}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag not found: {val_name}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_name}'. Please disambiguate.")
+        flag = matches[0]
         t = tmp_timestamp(val_end_time, val_uid, val_comments)
-        flag.end_flag(end, permissions=session.get('perms'))
+        # Use the modern API method; end_flag() is deprecated
+        flag.set_end(t, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1648,7 +1798,7 @@ def replace_flag():
 
     :return: A dictionary with a key 'result' of corresponding value True
     if the request was successful, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
@@ -1675,17 +1825,28 @@ def replace_flag():
             for name in val_flag_components:
                 allowed_list.append(p.Component.from_db(name))
 
-        flag_old = p.Flag.from_db(val_flag)
-        
+        # Lookup existing flag by display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_flag}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag to replace not found: {val_flag}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_flag}'. Please disambiguate.")
+        flag_old = matches[0]
+
         start = tmp_timestamp(val_start_time, val_uid, val_start_comments)
         if val_end_time != str(0):
             end = tmp_timestamp(val_end_time, val_uid, val_start_comments)
         else:
             end = None
-        flag_new = Flag(val_name, start, flag_severity, flag_type, 
-                        comments=val_comments, end=end, 
-                        components=allowed_list)
-        flag_old.replace(flag_new, permissions=session.get('perms'))
+        # Note: Flag does not have a 'name' attribute in the data model.
+        # We store the display name in 'notes' to preserve UI behaviour.
+        flag_new = p.Flag(type=flag_type,
+                          severity=flag_severity,
+                          notes=val_name,
+                          start=start,
+                          end=end,
+                          components=allowed_list)
+        flag_old.replace(flag_new, permissions=session.get('perms', []))
 
         return {'result': True}
 
@@ -1704,15 +1865,20 @@ def disable_flag():
     :return: A dictionary with a key 'result' of corresponding value True
     :rtype: dict
     """
-    try: 
+    try:
         val_name = escape(request.args.get('name'))
 
-        # Need to initialize an instance of a flag first.
-        flag = p.Flag.from_db(val_name)
+        # Lookup flag by its display name stored in notes
+        matches = p.Flag.get_list(filters=[{"notes": val_name}], allow_disabled=True)
+        if len(matches) == 0:
+            raise Exception(f"Flag not found: {val_name}")
+        if len(matches) > 1:
+            raise Exception(f"Multiple flags found with name '{val_name}'. Please disambiguate.")
+        flag = matches[0]
         flag.disable()
 
         return {'result': True}
-    
+
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
@@ -1720,8 +1886,8 @@ def disable_flag():
 
 @app.route("/api/flag_count")
 def get_flag_count():
-    """Given a URL parameter 'filters', return a dictionary with a value 
-    'result' and corresponding value being the number of flags that 
+    """Given a URL parameter 'filters', return a dictionary with a value
+    'result' and corresponding value being the number of flags that
     satisfy said filters.
 
     filters - of the form "<str>,<str>;...;<str>,<str>", consisting
@@ -1729,30 +1895,46 @@ def get_flag_count():
     tuples' contents separated by commas.
 
     :return: A dictionary with a value 'result' and corresponding value being
-    the number of flag that satisfy the filters. 
+    the number of flag that satisfy the filters.
     :rtype: dict
     """
+    try:
+        filters_str = request.args.get('filters')
 
-    filters = request.args.get('filters')
+        # Flags filter format from UI: "name,type,severity;..."
+        # Only type and severity apply to Flag attributes; ignore the leading name.
+        filt = []
+        if filters_str:
+            for triple in filters_str.split(';'):
+                if triple == "":
+                    continue
+                parts = triple.split(',')
+                # parts[0] is a free-text name filter not used by backend
+                if len(parts) >= 2 and parts[1]:
+                    d = {"type": parts[1]}
+                    if len(parts) >= 3 and parts[2]:
+                        d["severity"] = parts[2]
+                    filt.append(d)
 
-    filter_triples = read_filters(filters)
-
-    return {
-        'result': p.Flag.get_count(filters=filter_triples)
-    }
+        return {
+            'result': p.Flag.get_count(filters=filt)
+        }
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/flag_list")
 def get_flag_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'filters', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'filters', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     flag in the desired list.
 
     The URL parameters are:
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first property type to be 
+    where the first integer denotes the index first property type to be
     considered in the list and the second integer denotes the last flag
     to be shown in the list.
 
@@ -1771,43 +1953,66 @@ def get_flag_list():
     :rtype: dict
 
     """
-    raise RuntimeError("Flags have not been properly implemented in the "\
-                       "web interface.")
-    return
-    list_range = escape(request.args.get('range'))
-    order_by = escape(request.args.get('orderBy'))
-    order_direction = escape(request.args.get('orderDirection'))
+    try:
+        list_range = escape(request.args.get('range')) or "0;-1"
+        order_by = escape(request.args.get('orderBy')) or "type"
+        order_direction = escape(request.args.get('orderDirection')) or "asc"
 
-    filters = request.args.get('filters')
-    filt = parse_filters(filters, ["type", "severity"],
-                         [lambda x: x, lambda x: x])
+        filters_str = request.args.get('filters')
 
-    range_bounds = tuple(map(int, list_range.split(';')))
+        # Parse filters from UI: "name,type,severity;..." — ignore the leading name.
+        filt = []
+        if filters_str:
+            for triple in filters_str.split(';'):
+                if triple == "":
+                    continue
+                parts = triple.split(',')
+                if len(parts) >= 2 and parts[1]:
+                    d = {"type": parts[1]}
+                    if len(parts) >= 3 and parts[2]:
+                        d["severity"] = parts[2]
+                    filt.append(d)
 
-    # A bunch of assertions to make sure everything is as intended.
-    assert len(range_bounds) == 2
-    assert order_direction in {'asc', 'desc'}
+        # Normalize and validate ordering
+        valid_order_fields = {"type", "severity", "notes"}
+        if order_by not in valid_order_fields:
+            order_by = "type"
+        if order_direction not in {"asc", "desc"}:
+            order_direction = "asc"
 
-    # query to padloper
-    flags = p.Flag.get_list(
-        range=range_bounds,
-        order_by=[(order_by, order_direction)],
-        filters=filt
-    )
+        range_bounds = tuple(map(int, list_range.split(';')))
+        assert len(range_bounds) == 2
 
-    return {"result": [f.as_dict() for f in flags]}
+        flags = p.Flag.get_list(
+            range=range_bounds,
+            order_by=[(order_by, order_direction)],
+            filters=filt
+        )
+        result = []
+        for f in flags:
+            d = f.as_dict()
+            # Ensure UI gets a 'name' and 'comments' field; Flag stores 'notes'
+            if 'notes' in d and 'name' not in d:
+                d['name'] = d['notes']
+            if 'comments' not in d:
+                d['comments'] = d.get('notes', '')
+            result.append(d)
+        return {"result": result}
+    except Exception as e:
+        print(e)
+        return {'error': json.dumps(e, default=str)}
 
 
 @app.route("/api/flag_type_list")
 def get_flag_type_list():
-    """Given three URL parameters 'range', 'orderBy', 'orderDirection', 
-    and 'nameSubstring', return a dictionary containing a key 'result' with its 
-    corresponding value being an array of dictionary representations of each 
+    """Given three URL parameters 'range', 'orderBy', 'orderDirection',
+    and 'nameSubstring', return a dictionary containing a key 'result' with its
+    corresponding value being an array of dictionary representations of each
     flag type in the desired list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
-    considered in the list and the second integer denotes the last component 
+    where the first integer denotes the index first component type to be
+    considered in the list and the second integer denotes the last component
     type to be shown in the list.
 
     orderBy - the field to order the flag type list by, a string.
@@ -1845,8 +2050,8 @@ def get_flag_type_list():
 
 @app.route("/api/flag_type_count")
 def get_flag_type_count():
-    """Given a URL parameter 'nameSubstring', return a dictionary with a value 
-    'result' and corresponding value being the number of flag types that 
+    """Given a URL parameter 'nameSubstring', return a dictionary with a value
+    'result' and corresponding value being the number of flag types that
     have said substring in their name.
 
     nameSubstring - substring of the name of flag types to consider.
@@ -1871,7 +2076,7 @@ def get_flag_severity_list():
     list.
 
     range - of the form "<int>;<int>" -- two integers split by a semicolon,
-    where the first integer denotes the index first component type to be 
+    where the first integer denotes the index first component type to be
     considered in the list and the second integer denotes the last flag severity
     to be shown in the list.
 
@@ -2001,7 +2206,7 @@ def set_user():
         val_user_group = request.form.get('user_group').split(';')
     else:
         val_user_group = ['']
-        
+
     print(val_user_group)
 
     allowed_list = []
@@ -2017,28 +2222,35 @@ def set_user():
 
     return {'result': True}
 
+
 @app.route("/api/new_user", methods=['POST'])
 def new_user():
     val_username = request.form.get('username')
-    val_institution = request.form.get('institution')
-    user = p.User(val_username, val_institution)
-    user.add()
-    # print(user)
+    _val_institution = request.form.get('institution')
+    # Create user with no groups, then ensure 'readonly' group and assign.
+    user = p.User(name=val_username, groups=[])
+    user.add(permissions=session.get('perms', []))
+    try:
+        default_group = p.UserGroup.from_db('readonly')
+    except Exception:
+        default_group = p.UserGroup(name='readonly', permissions=[])
+        default_group.add(permissions=session.get('perms', []))
+    try:
+        user.add_group(default_group)
+    except Exception:
+        pass
     return {'result': True}
+
 
 @app.route("/api/new_usergroup", methods=['POST'])
 def new_user_group():
     val_name = request.form.get('name')
-    # val_values = escape(request.args.get('values'))
-    # values = val_values.split(';')
     val_permissions = escape(request.form.get('permissions'))
-    permissions = val_permissions.split(';')
-    # print(val_permissions)
-    group = p.UserGroup(val_name, permissions)
-    group._add()
-    # print(a.name)
-    # print(a.permissions)
+    permissions = val_permissions.split(';') if val_permissions is not None else []
+    group = p.UserGroup(name=val_name, permissions=permissions)
+    group.add(permissions=session.get('perms', []))
     return {'result': True}
+
 
 @app.route("/api/new_set_usergroup", methods=['POST'])
 def new_set_user_group():
@@ -2055,15 +2267,27 @@ def new_set_user_group():
     :return: Return a dictionary with a key 'result' and value being a boolean
     that is True if and only if the components were not already connected
     beforehand, otherwise, a dictionary with a key 'error'
-    with the corresponding value of appropriate exception.  
+    with the corresponding value of appropriate exception.
     :rtype: dict
     """
     try:
+        # Require admin membership to assign users to groups
+        acting = session.get('user')
+        if not acting:
+            return ({'error': 'Unauthorized'}), 401
+        try:
+            acting_user = p.User.from_db(acting)
+            acting_groups = acting_user.get_groups()
+            is_admin = any(getattr(gr, 'name', '') == 'admin' for gr in acting_groups)
+        except Exception:
+            is_admin = False
+        if not is_admin:
+            return ({'error': 'Forbidden: admin required to modify user groups'}), 403
 
         val_user = escape(request.form.get('user'))
         val_group = escape(request.form.get('group'))
         groups = val_group.split(';')
-        
+
         user = p.User.from_db(val_user)
         # user, group = p.User.from_db(val_user), p.UserGroup.from_db(val_group)
         for gr in groups:
@@ -2075,7 +2299,8 @@ def new_set_user_group():
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-    
+
+
 @app.route("/api/get_permissions", methods=['GET'])
 def get_permissions():
     val_username = request.args.get('username')
@@ -2091,20 +2316,395 @@ def get_user_list():
     users = p.User.get_list()
     # return {"result": [c.as_dict(bare=True) for c in components]}
     # return {'result': [p.User.as_dict(u) for u in users]}
-    return {'result': [p.User.as_dict(u) for u in users]} 
+    return {'result': [p.User.as_dict(u) for u in users]}
+
 
 @app.route("/api/get_user_groups", methods=["GET"])
 def get_user_groups():
     val_username = request.args.get('username')
     user = p.User.from_db(val_username)
     groups = user.get_groups()
-    return {'result': [gr[0].as_dict() for gr in groups]}
+    return {'result': [gr.as_dict() for gr in groups]}
+
 
 @app.route("/api/get_user_group_list", methods=["GET"])
 def get_user_group_list():
     groups = p.UserGroup.get_list()
     return {'result': [p.UserGroup.as_dict(gr) for gr in groups]}
 
+
 @app.route("/api/get_all_permissions", methods=["GET"])
 def get_all_permissions():
     return {'result': list(p.permissions_set)}
+
+
+@app.route("/api/component_sequence_list", methods=["GET"])
+def get_component_sequence_list():
+    component_range = escape(request.args.get('range'))
+    order_by = escape(request.args.get('orderBy'))
+    order_direction = escape(request.args.get('orderDirection'))
+    # name_substring = escape(request.args.get('nameSubstring'))
+
+    range_bounds = tuple(map(int, component_range.split(';')))
+
+    # make sure that the range bounds only consist of a min/max, and that
+    # the order direction is either asc or desc.
+    assert len(range_bounds) == 2
+    assert order_direction in {'asc', 'desc'}
+
+    sequences = p.ComponentSequence.get_list(
+        range=range_bounds,
+        order_by=[(order_by, order_direction)],
+        # filters=[{"name": TextP.containing(name_substring)}]
+    )
+
+    return {"result": [s.as_dict() for s in sequences]}
+
+
+@app.route("/api/set_sequence", methods=['POST'])
+def set_sequence():
+    try:
+        name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
+        next_seq = int(request.args.get('next_seq', 0))
+
+        # Query the database and return the ComponentType instance based on the
+        # component type name.
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        component = p.ComponentSequence(
+            name=name, component_type=component_type, format=format_,
+            increment=increment, next_seq=next_seq,
+        )
+        component.add(permissions=session.get('perms', []))
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/update_sequence/<name>", methods=['POST'])
+def update_sequence(name):
+    try:
+        new_name = escape(request.args.get('name'))
+        component_type = escape(request.args.get('component_type'))
+        format_ = escape(request.args.get('format'))
+        increment = request.args.get('increment', 'false') == 'true'
+        next_seq = request.args.get('next_seq', 0, type=int)
+
+        # query the database to get the existing sequence and component type
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        component_type = p.ComponentType.from_db(primary_attr=component_type)
+
+        vals = {
+            'increment': increment,
+            'next_seq': next_seq,
+        }
+        if new_name:
+            vals['name'] = new_name
+        if component_type:
+            vals['component_type'] = component_type
+        if format_:
+            vals['format'] = format_
+
+        sequence.update(**vals)
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/delete_sequence/<name>", methods=['POST'])
+def delete_sequence(name):
+    try:
+        sequence = p.ComponentSequence.from_db(primary_attr=name)
+        sequence.delete()
+        return {'result': True}
+    except Exception as e:
+        return {'error': json.dumps(e, default=str)}
+
+
+@app.route("/api/bulk_input", methods=['POST'])
+def bulk_input():
+    payload = request.json
+
+    ltf = payload.get('ltf', '')
+    timestamp = payload.get('time')
+    comments = payload.get('comments', '')
+
+    op_chars = {
+        '|': 'merge',
+        '>': 'connect',
+        '<>': 'replace',
+        '//': 'disconnect',
+        '<<': 'supercomponent',
+        '>>': 'subcomponent',
+    }
+    op_template = {
+        'component1': {
+            'name': '',
+            'attrs': [],
+        },
+        'operation': '',
+        'component2': {
+            'name': '',
+            'attrs': [],
+        },
+    }
+
+    # pre-process the LTF entry
+    ltf += '\n' # add a newline to ensure all regex commands work properly
+    ltf = re.sub(r"(?<![\w\.])[ \t]*#.*[\r\n]", "", ltf) # remove comments
+    ltf = re.sub(r"(?<![\w\.])[ \t]*\$\$.*", "", ltf) # $$ lines -> blank lines
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*[\r\n][ \t]*(?=[\.\+])", " | ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*[\r\n][ \t]*(?=\w)", " > ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?\/\/[ \t]*[\r\n]?(?=\w)", " // ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?<>[ \t]*[\r\n]?(?=\w)", " <> ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?>>[ \t]*[\r\n]?(?=\w)", " >> ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?<<[ \t]*[\r\n]?(?=\w)", " << ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])[ \t]*[\r\n]?>[ \t]*[\r\n]?(?=\w)", " > ", ltf)
+    ltf = re.sub(r"(?<=[\w\.])(?<!;)[ \t]*(?=[\r\n][ \t]*)(?!\w)", ";", ltf)
+    ltf = re.sub(r"(?<=[\w\.]);[ \t]*(?=\w)", ";\n", ltf)
+    ltf = re.sub(r"[ \t]+", " ", ltf) # replace all multi-spaces with a single
+    ltf = ltf.replace(" ;", ";") # ensure no space before semicolons
+    ltf = re.sub(r"(?<=[\w\.]);[ \t]*[\r\n][ \t]*(?!\w)", ";", ltf)
+
+    # process the ltf into operations
+    operations = []
+    operations : List[Dict[str, Dict[str, List[Tuple[str, str]] | str] | str]]
+    for i, line in enumerate(ltf.split('\n')):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.endswith(';'):
+            return {'error': (f"No semicolon in line {i} of ltf:\n{ltf}\n"
+                              f"This usually indicates a syntax format of "
+                              f"some kind, e.g. ending a line with an "
+                              f"operator like '>'.")}
+
+        elements = line.removesuffix(';').split(' ')
+        if elements[0] in op_chars:
+            return {'error': (f"Operations cannot begin with an operator! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if elements[-1] in op_chars:
+            return {'error': (f"Operations cannot end with an operator! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if '=' in elements[0]:
+            return {'error': (f"Operations cannot begin with an attribute! "
+                              f"Line {i} of ltf:\n{ltf}")}
+        if elements[0].startswith('.') or elements[0].startswith('+'):
+            return {'error': (f"The first element of multi-line entries "
+                              f"cannot begin with a wildcard. Line {i} of "
+                              f"ltf:\n{ltf}")}
+
+        op = deepcopy(op_template)
+        for j, el in enumerate(elements):
+            if el in op_chars and op['operation'] and op['component2']['name']:
+                # we've completed an operation so start a continuation op
+                operations.append(op)
+                new_op = deepcopy(op_template)
+                new_op['component1'] = op['component2']
+                op = new_op
+            if el in op_chars and op['operation']:
+                # this is back-to-back operations, so it's invalid
+                return {'error': (f"Cannot have two operators back-to-back! "
+                                  f"Line {i}, element {j} of ltf:\n{ltf}")}
+            elif el in op_chars:
+                # this is the operation type
+                op['operation'] = op_chars[el]
+            elif '=' in el:
+                # if there is an equal sign, this is an attribute
+                el = el.replace("+", " ") # spaces are encoded as + characters
+                if op['operation']:
+                    # we're on the second component if there's an operation
+                    if not op['component2']['name']:
+                        return {'error': (f"A component must be defined "
+                                          f"before attributes! Line {i}, "
+                                          f"element {j} of ltf:\n{ltf}")}
+                    op['component2']['attrs'].append(tuple(el.split('=')))
+                else:
+                    # if there's not yet an operation, we've already verified
+                    # that the line does not begin with an attribute
+                    op['component1']['attrs'].append(tuple(el.split('=')))
+            else:
+                # if not an operation or an attribute it should be a component
+                if op['operation'] and not op['component2']['name']:
+                    # just after the op, so this should be the 2nd component
+                    op['component2']['name'] = el
+                elif op['operation'] or op['component1']['name']:
+                    # e.g. ANT0000A > LNA0000A CXC0000A or ANT0000A LNA0000A
+                    # missing operator between two components
+                    return {'error': (f"Missing an operator between "
+                                      f"components! Line {i}, element {j} "
+                                      f"of ltf:\n{ltf}")}
+                else:
+                    # this should be the first component at this point
+                    op['component1']['name'] = el
+        operations.append(op)
+
+    # create a standard timestamp for all operations to use
+    tstamp = p.Timestamp(int(time.time()))
+
+    # permissions to use for all ops
+    perms = session.get('perms', [])
+
+    # process the operations with padloper
+    # Operations will be queued and run sequentially, with each operation
+    # consisting of component, a method to run on that component with getattr,
+    # and optional args/kwargs. The component can either be an instance of the
+    # Component class or the name of the component if it will be created in a
+    # previous step.
+    op_seq : List[Tuple[p.Component | str, str, List, Dict]] = []
+    for o, op in enumerate(operations):
+        # handle the merge operation first since we're not creating anything
+        if op['operation'] == 'merge':
+            c1 = op['component1']['name']
+            c2 = op['component2']['name']
+            if c2.startswith('+'):
+                # expand out the + to dots
+                for i in range(1, len(c1)-len(c2)+2):
+                    test = c2.replace('+', '.'*i)
+                    if all((ch1=='.')or(ch2=='.') for ch1,ch2 in zip(c1,test)):
+                        c2 = test
+                        break
+            if all((ch1 == '.') or (ch2 == '.') for ch1, ch2 in zip(c1, c2)):
+                # we have compatible merge strings
+                res = ''
+                for i in range(max(len(c1), len(c2))):
+                    if i < len(c1) and c1[i] != '.':
+                        res += c1[i]
+                    elif i < len(c2) and c2[i] != '.':
+                        res += c2[i]
+                    elif i < len(c1):
+                        res += c1[i]
+                    else:
+                        res += c2[i]
+            if not res:
+                return {'error': (f"Could not merge elements {c1} and "
+                                  f"{op['component2']['name']}!")}
+            if o+1 < len(operations):
+                operations[o+1]['component1']['name'] = res
+                c1_attrs = op['component1']['attrs']
+                new_attrs = operations[o+1]['component1']['attrs']
+                operations[o+1]['component1'].update({
+                    'attrs': c1_attrs + new_attrs
+                })
+            continue
+
+        # fetch or create operation's first component
+        c1, c1_exists = p.Component.fetch_or_create(op['component1']['name'],
+                                                    op['component1']['attrs'])
+        if c1 is None:
+            return {'error': (f"Component {op['component1']['name']} does not "
+                              f"yet exist in the database, and its component "
+                              f"type could not be identified! Please ensure "
+                              f"there is a valid sequence matching the "
+                              f"component or specify type=<some_type> as an "
+                              f"attribute on the component.")}
+
+        # queue the addition of the first component if we need to create it
+        if not c1_exists:
+            op_seq.append((c1, 'add', [], {'permissions': perms}))
+
+        # format properties as dictionary and remove component attributes
+        c1_props = dict(op['component1']['attrs'])
+        c1_props.pop('name', None)
+        c1_props.pop('type', None)
+        c1_props.pop('version', None)
+
+        if not op['operation']:
+            # i.e. we're just creating a component and/or adding props
+            continue
+
+        # fetch or create second component
+        c2, c2_exists = p.Component.fetch_or_create(op['component2']['name'],
+                                                    op['component2']['attrs'])
+        if c2 is None:
+            return {'error': (f"Component {op['component2']['name']} does not "
+                              f"yet exist in the database, and its component "
+                              f"type could not be identified! Please ensure "
+                              f"there is a valid sequence matching the "
+                              f"component or specify type=<some_type> as an "
+                              f"attribute on the component.")}
+
+        # queue the addition of the second component if we need to create it
+        if not c2_exists:
+            op_seq.append((c2, 'add', [], {'permissions': perms}))
+
+        # format properties as dictionary and remove component attributes
+        c2_props = dict(op['component2']['attrs'])
+        c2_props.pop('name', None)
+        c2_props.pop('type', None)
+        c2_props.pop('version', None)
+
+        # prep the component variables for addition to the operation sequence
+        # we'll use the Component objects if they exist, otherwise the names
+        comp1 = c1 if c1_exists else op['component1']['name']
+        comp2 = c2 if c2_exists else op['component2']['name']
+
+        # queue the addition of properties to component 1
+        # @TODO: add properties to nodes
+
+        # queue the addition of properties to component 2
+        # @TODO: add properties to nodes
+
+        # handle connection operation
+        if op['operation'] == 'connect':
+            op_seq.append((comp1, 'connect', [comp2, tstamp],
+                           {'permissions': perms}))
+            continue
+
+        # handle disconnect operation
+        if op['operation'] == 'disconnect':
+            op_seq.append((comp1, 'disconnect', [comp2, tstamp],
+                           {'permissions': perms}))
+            continue
+
+        # handle subcomponent (>>) operation
+        if op['operation'] == 'subcomponent':
+            op_seq.append((comp2, 'subcomponent_connect', [comp1],
+                           {'permissions': perms}))
+            continue
+
+        # handle supercomponent (<<) operation
+        if op['operation'] == 'supercomponent':
+            op_seq.append((comp1, 'subcomponent_connect', [comp2],
+                           {'permissions': perms}))
+            continue
+
+        # handle replace (<>) operation
+        if op['operation'] == 'replace':
+            op_seq.append((comp1, 'replace', [comp2],
+                           {'disable_time': tstamp, 'permissions': perms}))
+            continue
+
+    # execute the operations in sequence
+    created_components : Dict[str, p.Component] = {}
+    for comp, method, args, kwargs in op_seq:
+        if isinstance(comp, p.Component):
+            # this is the case if the component already exists in the database
+            component = comp
+        else:
+            # component was created in a previous step, so we need to fetch it
+            component = created_components.get(comp)
+
+        # replace component strings in the args
+        parsed_args = []
+        for arg in args:
+            if isinstance(arg, str) and arg in created_components:
+                parsed_args.append(created_components[arg])
+            else:
+                parsed_args.append(arg)
+
+        # fetch the operation on the component
+        operation = getattr(component, method)
+        operation : Callable[..., p.Component | None]
+
+        # execute the operation with the passed args and kwargs
+        res = operation(*parsed_args, **kwargs)
+        if isinstance(comp, str) and isinstance(res, p.Component):
+            created_components.update({comp: res})
+        elif isinstance(comp, p.Component) and isinstance(res, p.Component):
+            created_components.update({comp.name: res})
+
+    return {'result': True}
