@@ -1379,7 +1379,7 @@ class UserGroup(Vertex):
     _vertex_attrs: list = [
         VertexAttr("name", str),
         VertexAttr("permissions", str, is_list=True),
-        VertexAttr("comments", str, optional=True)
+        VertexAttr("comments", str, optional=True, default="")
     ]
     primary_attr: str = "name"
 

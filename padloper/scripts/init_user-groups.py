@@ -12,7 +12,7 @@ p.g.t.V().has("name", 'Default').has('category', p.UserGroup.category).drop().it
 print("\tDone.")
 
 print("Creating default user group.")
-protected_group = p.UserGroup('Default', ['*'])
+protected_group = p.UserGroup(name='Default', permissions=['*'])
 protected_group._add()
 print("\tDone.")
 
@@ -53,7 +53,8 @@ protected_permissions = [
 ]
 
 print("Creating protected user group.")
-protected_group = p.UserGroup('Protected', protected_permissions)
+protected_group = p.UserGroup(name='Protected', 
+                              permissions=protected_permissions)
 protected_group._add()
 print("\tDone.")
 
@@ -69,7 +70,7 @@ general_permissions = [
 ]
 
 print("Creating general user group")
-general_group = p.UserGroup('General', general_permissions)
+general_group = p.UserGroup(name='General', permissions=general_permissions)
 general_group._add()
 print("\tDone.")
 

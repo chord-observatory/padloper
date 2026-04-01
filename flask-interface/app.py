@@ -753,7 +753,8 @@ def get_component_type_list():
         filters=[{"name": TextP.containing(name_substring)}]
     )
     
-    return {"result": [t.as_dict() for t in types]}
+    return {"result": [t.as_dict(permissions=session.get('perms')) \
+                       for t in types]}
 
 
 @app.route("/api/component_type_count")
@@ -823,7 +824,8 @@ def get_component_version_list():
         filters=filt
     )
     
-    return {"result": [v.as_dict() for v in vers]}
+    return {"result": [v.as_dict(permissions=session.get('perms')) \
+                       for v in vers]}
 
 @app.route("/api/component_version_count")
 def get_component_version_count():
@@ -920,7 +922,8 @@ def get_property_type_list():
         filters=filt
     )
 
-    return {"result": [pt.as_dict() for pt in ptypes]}
+    return {"result": [pt.as_dict(permissions=session.get('perms')) \
+                       for pt in ptypes]}
 
 
 @app.route("/api/component_set_property", methods=['POST'])
@@ -1808,7 +1811,8 @@ def get_flag_list():
         filters=filt
     )
 
-    return {"result": [f.as_dict() for f in flags]}
+    return {"result": [f.as_dict(permissions=session.get('perms')) \
+                       for f in flags]}
 
 
 @app.route("/api/flag_type_list")
@@ -1854,7 +1858,8 @@ def get_flag_type_list():
         filters=[{"name": TextP.containing(name_substring)}]
     )
 
-    return {"result": [ft.as_dict() for ft in flag_types]}
+    return {"result": [ft.as_dict(permissions=session.get('perms')) \
+                       for ft in flag_types]}
 
 @app.route("/api/flag_type_count")
 def get_flag_type_count():
@@ -1913,7 +1918,8 @@ def get_flag_severity_list():
     flag_severities = p.FlagSeverity.get_list(range=range_bounds,
             order_by=[(order_by, order_direction)])
 
-    return {"result": [fs.as_dict() for fs in flag_severities]}
+    return {"result": [fs.as_dict(permissions=session.get('perms')) \
+                       for fs in flag_severities]}
 
 
 @app.route("/api/set_permission", methods=['POST'])
@@ -2106,19 +2112,23 @@ def get_user_list():
     users = p.User.get_list()
     # return {"result": [c.as_dict(bare=True) for c in components]}
     # return {'result': [p.User.as_dict(u) for u in users]}
-    return {'result': [p.User.as_dict(u) for u in users]} 
+    return {'result': [p.User.as_dict(u, permissions=session.get('perms')) \
+                       for u in users]} 
 
 @app.route("/api/get_user_groups", methods=["GET"])
 def get_user_groups():
     val_username = request.args.get('username')
     user = p.User.from_db(val_username)
     groups = user.get_groups()
-    return {'result': [gr[0].as_dict() for gr in groups]}
+    return {'result': [gr[0].as_dict(permissions=session.get('perms')) \
+                       for gr in groups]}
 
 @app.route("/api/get_user_group_list", methods=["GET"])
 def get_user_group_list():
     groups = p.UserGroup.get_list()
-    return {'result': [p.UserGroup.as_dict(gr) for gr in groups]}
+    return {'result': [p.UserGroup.as_dict(gr, 
+                                           permissions=session.get('perms')) \
+                       for gr in groups]}
 
 @app.route("/api/get_all_permissions", methods=["GET"])
 def get_all_permissions():
