@@ -350,7 +350,7 @@ class Component(Vertex):
         return result
 
     @authenticated
-    def get_network(self, depth, time):
+    def get_network(self, depth, time, permissions=None):
         """Return all nodes and edges for a given trace depth at a given time
 
         :param depth: The depth of the network trace
@@ -1352,13 +1352,8 @@ class Component(Vertex):
         """
         # TODO: at_time has not yet been implemented!
         assert(at_time == None)
-<<<<<<< HEAD
 
-        base = super().as_dict()
-=======
-        
         base = super().as_dict(permissions=permissions)
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         if not bare:
             prop_dicts = [{**prop.as_dict(), **rel.as_dict()} \

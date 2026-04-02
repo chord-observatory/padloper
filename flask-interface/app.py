@@ -85,14 +85,8 @@ def parse_filters(filtstr, attrs, funcs):
 def set_perms(username):
     """ Get user permissions from the database, and set as a sessions variable.
     """
-<<<<<<< HEAD
     # Cache user in session and compute permissions from DB
     session['user'] = username
-=======
-    print("------------------")
-    print(username)
-    session['uid'] = username
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     user = p.User.from_db(username)
     perms = user.get_permissions()
     print(">>> ", perms)
@@ -104,18 +98,18 @@ def set_perms(username):
 
 @app.before_request
 def _ensure_padloper_user():
-    """Ensure padloper has the current user set for write auditing.
+    """Require a logged-in session for all routes except login."""
+    # Allow the login endpoint without a session
+    if request.path == '/api/login':
+        return
 
-    Many padloper write operations stamp uid/time and require an active user.
-    We set it here per request if available from the session.
-    """
+    uname = session.get('user')
+    if not uname:
+        return ({'error': 'Authentication required'}), 401
+
     try:
-        uname = session.get('user')
-        if uname:
-            p.set_user(uname)
+        p.set_user(uname)
     except Exception:
-        # Do not block requests if user lookup fails; handlers will raise
-        # appropriate errors on protected/write operations.
         pass
 
 
@@ -146,12 +140,16 @@ def login():
             data = response.json()
 
             if data.get('login') == username:
-                # Ensure a User vertex exists for this GitHub login. If not,
-                # create it with no groups, ensure a 'readonly' group (no perms),
-                # and add the user to that group. Stamp the write with the user.
+                # Look up existing user, or bootstrap if this is the very
+                # first user in the system (empty database).
                 try:
                     user_obj = p.User.from_db(username)
                 except Exception:
+                    # Only allow auto-creation when no users exist yet.
+                    existing_users = p.User.get_list()
+                    if len(existing_users) > 0:
+                        return ({'error': 'User not found. '
+                                 'Please contact an administrator to create your account.'}), 403
                     try:
                         # Minimal stub for uid stamping during creation
                         p_global._user = type("_LoginStub", (), {"name": username})()
@@ -168,10 +166,8 @@ def login():
                         try:
                             user_obj.add_group(default_group)
                         except Exception:
-                            # If already in group or any non-fatal issue, continue
                             pass
                     finally:
-                        # Clear stub; a proper user will be set below
                         p_global._user = None
 
                 # Establish session perms and set current user for this process
@@ -282,21 +278,14 @@ def components_tree(name, depth, time):
     :return: Return a dictionary of 'result' with nodes and edges
     :rtype: dict
     """
-<<<<<<< HEAD
     try:
         component = p.Component.from_db(str(escape(name)))
         res = {
-            'result': component.get_network(int(depth), int(time))
+            'result': component.get_network(int(depth), int(time), permissions=session.get('perms'))
         }
         return res
     except Exception as e:
         return {'error': json.dumps(e, default=str)}
-=======
-    return {
-        'result': p.Component.from_db(str(escape(name)))\
-                   .as_dict(permissions=session.get('perms'))
-    }
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 @app.route("/api/component_list")
@@ -345,7 +334,7 @@ def get_component_list():
         # extract the filters
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [lambda x: TextP("regex", f"(?i){x}"),
+                            [lambda x: TextP("regex", f"(?i){re.escape(x)}"),
                              lambda x: x, lambda x: x])
 
         # make sure that the range bounds only consist of a min/max, and that
@@ -358,15 +347,8 @@ def get_component_list():
             order_by=[(order_by, order_direction)],
             filters=filt,
         )
-<<<<<<< HEAD
 
-        return {'result': [c.as_dict(bare=True) for c in components]}
-=======
-    
-        return {'result': [c.as_dict(\
-                   bare=True, permissions=session.get('perms')) \
-                for c in components]}
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+        return {'result': [c.as_dict(bare=True, permissions=session.get('perms')) for c in components]}
 
     except Exception as e:
         print(e)
@@ -398,12 +380,8 @@ def set_component_type():
         component_type = p.ComponentType(name=val_name, comments=val_comments)
 
 
-<<<<<<< HEAD
-        component_type.add(permissions=session.get('perms', []))
-=======
         component_type.add(permissions=session.get('perms'),
-                           uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                           uid=session.get('user'))
 
         return {'result': True}
 
@@ -483,13 +461,8 @@ def set_component_version():
         component_version = p.ComponentVersion(
             name=val_name, type=component_type, comments=val_comments)
 
-<<<<<<< HEAD
-        component_version.add(permissions=session.get('perms', []))
-=======
         component_version.add(permissions=session.get('perms'),
-                              uid=session.get('uid'))
-
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                              uid=session.get('user'))
 
         return {'result': True}
 
@@ -595,14 +568,8 @@ def set_component():
             # Need to initialize an instance of a component first.
             component = p.Component(name=name, type=component_type,
                                     version=component_version)
-<<<<<<< HEAD
-            component.add(permissions=session.get('perms', []))
-=======
-            print(component)
-            print(session.get("perms"))
             component.add(permissions=session.get('perms'),
-                          uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                          uid=session.get('user'))
 
 
         return {'result': True}
@@ -673,7 +640,7 @@ def replace_component():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/disable_component")
+@app.route("/api/disable_component", methods=['POST'])
 def disable_component():
     """Given the component name, disable the component from the serverside.
 
@@ -691,7 +658,7 @@ def disable_component():
 
         # Need to initialize an instance of a component first.
         component = p.Component.from_db(val_name)
-        component.disable()
+        component.disable(permissions=session.get('perms'))
 
         return {'result': True}
 
@@ -745,12 +712,8 @@ def set_property_type():
                                        n_values=int(val_values),
                                        allowed_types=allowed_list,
                                        comments=val_comments)
-<<<<<<< HEAD
-        property_type.add(permissions=session.get('perms', []))
-=======
         property_type.add(permissions=session.get('perms'),
-                          uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                          uid=session.get('user'))
 
         return {'result': True}
 
@@ -841,7 +804,7 @@ def get_component_count():
 
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [lambda x: TextP("regex", f"(?i){x}"),
+                            [lambda x: TextP("regex", f"(?i){re.escape(x)}"),
                              lambda x: x, lambda x: x])
 
         return {'result': p.Component.get_count(filters=filt)}
@@ -923,14 +886,8 @@ def get_component_type_list():
         order_by=[(order_by, order_direction)],
         filters=[{"name": TextP.containing(name_substring)}]
     )
-<<<<<<< HEAD
 
-    return {"result": [t.as_dict() for t in types]}
-=======
-    
-    return {"result": [t.as_dict(permissions=session.get('perms')) \
-                       for t in types]}
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+    return {"result": [t.as_dict(permissions=session.get('perms')) for t in types]}
 
 
 @app.route("/api/component_type_count")
@@ -987,7 +944,7 @@ def get_component_version_list():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "type"],
-        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
     )
 
     range_bounds = tuple(map(int, list_range.split(';')))
@@ -1001,14 +958,8 @@ def get_component_version_list():
         order_by=[(order_by, order_direction)],
         filters=filt
     )
-<<<<<<< HEAD
 
-    return {"result": [v.as_dict() for v in vers]}
-=======
-    
-    return {"result": [v.as_dict(permissions=session.get('perms')) \
-                       for v in vers]}
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+    return {"result": [v.as_dict(permissions=session.get('perms')) for v in vers]}
 
 @app.route("/api/component_version_count")
 def get_component_version_count():
@@ -1028,7 +979,7 @@ def get_component_version_count():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "type"],
-        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
     )
 
     return {'result': p.ComponentVersion.get_count(filters=filt)}
@@ -1052,7 +1003,7 @@ def get_property_type_count():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "allowed_types"],
-        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
     )
 
     return {
@@ -1096,7 +1047,7 @@ def get_property_type_list():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "allowed_types"],
-        [lambda x: TextP("regex", f"(?i){x}"), lambda x: x]
+        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
     )
 
     range_bounds = tuple(map(int, list_range.split(';')))
@@ -1177,7 +1128,7 @@ def set_component_property():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_end_property")
+@app.route("/api/component_end_property", methods=['POST'])
 def end_component_property():
     """Given the component name, property type, time, user ID and comments, end
     the property for the component.
@@ -1219,7 +1170,7 @@ def end_component_property():
                     )
 
         t = tmp_timestamp(val_time, val_uid, val_comments)
-        component.unset_property(property, t)
+        component.unset_property(property, t, permissions=session.get('perms'))
 
         return {'result': True}
 
@@ -1228,7 +1179,7 @@ def end_component_property():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_replace_property")
+@app.route("/api/component_replace_property", methods=['POST'])
 def replace_component_property():
     """Given the component name, property type and the replaced time, user ID,
     comments, the values associated with the property, along with the count of
@@ -1289,7 +1240,7 @@ def replace_component_property():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_disable_property")
+@app.route("/api/component_disable_property", methods=['POST'])
 def disable_component_property():
     """Given the component name and the name of the property type, disable the
     property from the serverside.
@@ -1375,7 +1326,7 @@ def add_component_connection():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_end_connection")
+@app.route("/api/component_end_connection", methods=['POST'])
 def end_component_connection():
     """Given the names of the two components that are already connected, the
     time to end the connection, the ID of the user ending this connection, and
@@ -1424,7 +1375,7 @@ def end_component_connection():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_disable_connection")
+@app.route("/api/component_disable_connection", methods=['POST'])
 def disable_component_connection():
     """Given the names of the two components to disable the connection between,
     and the time at which the connection was created, disable the connection between
@@ -1458,7 +1409,7 @@ def disable_component_connection():
                 + f" with start time {datetime.fromtimestamp(int(time))}."
                 + "Something went very wrong, please contact a maintainer!")
         else:
-            connections[0].disable()        # disable the connection
+            connections[0].disable(permissions=session.get('perms'))  # disable the connection
 
         return {'result': True}
 
@@ -1495,17 +1446,9 @@ def get_connections():
     return {
         'result': [
             {
-<<<<<<< HEAD
-                'inVertex': conn.inVertex.as_dict(),
-                'outVertex': conn.outVertex.as_dict(),
-                'subcomponent': isinstance(conn, p.RelationSubcomponent),
-=======
                 'inVertex': conn.inVertex.as_dict(permissions=session.get('perms')),
                 'outVertex': conn.outVertex.as_dict(permissions=session.get('perms')),
-                'subcomponent': True if isinstance(conn,
-                                                   p.RelationSubcomponent) \
-                                else False,
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                'subcomponent': isinstance(conn, p.RelationSubcomponent),
                 'id': conn.id(),
             }
             for conn in connections
@@ -1576,7 +1519,7 @@ def add_component_subcomponent():
         return {'error': json.dumps(e, default=str)}
 
 
-@app.route("/api/component_disable_subcomponent")
+@app.route("/api/component_disable_subcomponent", methods=['POST'])
 def disable_component_subcomponent():
     """Given the name of the the component that is a subcomponent along with the
     name of the main component, disable the appropriate connection.
@@ -1627,16 +1570,10 @@ def set_flag_type():
         val_name = escape(request.args.get('name'))
         val_comments = escape(request.args.get('comments'))
 
-<<<<<<< HEAD
         # Create a FlagType with proper keyword args
         flag_type = p.FlagType(name=val_name, comments=val_comments)
-        flag_type.add(permissions=session.get('perms', []))
-=======
-        # Need to initialize an instance of a component version first.
-        flag_type = p.FlagType(val_name, val_comments)
         flag_type.add(permissions=session.get('perms'),
-                      uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                      uid=session.get('user'))
 
         return {'result': True}
 
@@ -1693,16 +1630,10 @@ def set_flag_severity():
     try:
         val_name = escape(request.args.get('name'))
 
-<<<<<<< HEAD
         # Create a FlagSeverity with proper keyword args
         flag_severity = p.FlagSeverity(name=val_name)
-        flag_severity.add(permissions=session.get('perms', []))
-=======
-        # Need to initialize an instance of a component version first.
-        flag_severity = p.FlagSeverity(val_name)
         flag_severity.add(permissions=session.get('perms'),
-                          uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+                          uid=session.get('user'))
 
         return {'result': True}
 
@@ -1802,11 +1733,7 @@ def set_flag():
                       start=start,
                       end=end,
                       components=allowed_list)
-<<<<<<< HEAD
-        flag.add(permissions=session.get('perms', []))
-=======
-        flag.add(permissions=session.get('perms'), uid=session.get('uid'))
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+        flag.add(permissions=session.get('perms'), uid=session.get('user'))
 
         return {'result': True}
 
@@ -1938,7 +1865,7 @@ def replace_flag():
         print(e)
         return {'error': json.dumps(e, default=str)}
 
-@app.route("/api/disable_flag")
+@app.route("/api/disable_flag", methods=['POST'])
 def disable_flag():
     """Given the flag name, disable the flag from the serverside.
 
@@ -1959,7 +1886,7 @@ def disable_flag():
         if len(matches) > 1:
             raise Exception(f"Multiple flags found with name '{val_name}'. Please disambiguate.")
         flag = matches[0]
-        flag.disable()
+        flag.disable(permissions=session.get('perms'))
 
         return {'result': True}
 
@@ -2067,7 +1994,6 @@ def get_flag_list():
         range_bounds = tuple(map(int, list_range.split(';')))
         assert len(range_bounds) == 2
 
-<<<<<<< HEAD
         flags = p.Flag.get_list(
             range=range_bounds,
             order_by=[(order_by, order_direction)],
@@ -2075,7 +2001,7 @@ def get_flag_list():
         )
         result = []
         for f in flags:
-            d = f.as_dict()
+            d = f.as_dict(permissions=session.get('perms'))
             # Ensure UI gets a 'name' and 'comments' field; Flag stores 'notes'
             if 'notes' in d and 'name' not in d:
                 d['name'] = d['notes']
@@ -2086,10 +2012,6 @@ def get_flag_list():
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
-=======
-    return {"result": [f.as_dict(permissions=session.get('perms')) \
-                       for f in flags]}
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 @app.route("/api/flag_type_list")
@@ -2222,7 +2144,7 @@ def set_permission():
     # Need to initialize an instance of a component first.
     permission = p.Permission(val_name, val_comment)
 
-    permission.add(permissions=session.get('perms'), uid=session.get('uid'))
+    permission.add(permissions=session.get('perms'), uid=session.get('user'))
 
     return {'result': True}
 
@@ -2261,7 +2183,7 @@ def set_user_group():
 
     # print(f"user_group: {user_group}")
 
-    user_group.add(permissions=session.get('perms'), uid=session.get('uid'))
+    user_group.add(permissions=session.get('perms'), uid=session.get('user'))
 
     return {'result': True}
 
@@ -2309,7 +2231,7 @@ def set_user():
     else:
         user = p.User(val_uname, val_pwd_hash, val_institution)
 
-    user.add(permissions=session.get('perms'), uid=session.get('uid'))
+    user.add(permissions=session.get('perms'), uid=session.get('user'))
 
     return {'result': True}
 
@@ -2317,27 +2239,21 @@ def set_user():
 @app.route("/api/new_user", methods=['POST'])
 def new_user():
     val_username = request.form.get('username')
-<<<<<<< HEAD
     _val_institution = request.form.get('institution')
     # Create user with no groups, then ensure 'readonly' group and assign.
     user = p.User(name=val_username, groups=[])
-    user.add(permissions=session.get('perms', []))
+    user.add(permissions=session.get('perms'),
+             uid=session.get('user'))
     try:
         default_group = p.UserGroup.from_db('readonly')
     except Exception:
         default_group = p.UserGroup(name='readonly', permissions=[])
-        default_group.add(permissions=session.get('perms', []))
+        default_group.add(permissions=session.get('perms'),
+                          uid=session.get('user'))
     try:
-        user.add_group(default_group)
+        user.add_group(default_group, permissions=session.get('perms'))
     except Exception:
         pass
-=======
-    val_institution = request.form.get('institution')
-    user = p.User(val_username, val_institution)
-    user.add(permissions=session.get('perms'),
-             uid=session.get('uid'))
-    # print(user)
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     return {'result': True}
 
 
@@ -2347,7 +2263,8 @@ def new_user_group():
     val_permissions = escape(request.form.get('permissions'))
     permissions = val_permissions.split(';') if val_permissions is not None else []
     group = p.UserGroup(name=val_name, permissions=permissions)
-    group.add(permissions=session.get('perms', []))
+    group.add(permissions=session.get('perms'),
+              uid=session.get('user'))
     return {'result': True}
 
 
@@ -2391,7 +2308,7 @@ def new_set_user_group():
         # user, group = p.User.from_db(val_user), p.UserGroup.from_db(val_group)
         for gr in groups:
             group = p.UserGroup.from_db(gr)
-            user.add_group(group)
+            user.add_group(group, permissions=session.get('perms'))
 
         return {'result': True}
 
@@ -2416,26 +2333,14 @@ def get_user_list():
     users = p.User.get_list()
     # return {"result": [c.as_dict(bare=True) for c in components]}
     # return {'result': [p.User.as_dict(u) for u in users]}
-<<<<<<< HEAD
-    return {'result': [p.User.as_dict(u) for u in users]}
-
-=======
-    return {'result': [p.User.as_dict(u, permissions=session.get('perms')) \
-                       for u in users]} 
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+    return {'result': [p.User.as_dict(u, permissions=session.get('perms')) for u in users]}
 
 @app.route("/api/get_user_groups", methods=["GET"])
 def get_user_groups():
     val_username = request.args.get('username')
     user = p.User.from_db(val_username)
     groups = user.get_groups()
-<<<<<<< HEAD
-    return {'result': [gr.as_dict() for gr in groups]}
-
-=======
-    return {'result': [gr[0].as_dict(permissions=session.get('perms')) \
-                       for gr in groups]}
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
+    return {'result': [gr.as_dict(permissions=session.get('perms')) for gr in groups]}
 
 @app.route("/api/get_user_group_list", methods=["GET"])
 def get_user_group_list():
@@ -2470,7 +2375,7 @@ def get_component_sequence_list():
         # filters=[{"name": TextP.containing(name_substring)}]
     )
 
-    return {"result": [s.as_dict() for s in sequences]}
+    return {"result": [s.as_dict(permissions=session.get('perms')) for s in sequences]}
 
 
 @app.route("/api/set_sequence", methods=['POST'])
@@ -2490,7 +2395,8 @@ def set_sequence():
             name=name, component_type=component_type, format=format_,
             increment=increment, next_seq=next_seq,
         )
-        component.add(permissions=session.get('perms', []))
+        component.add(permissions=session.get('perms'),
+                      uid=session.get('user'))
         return {'result': True}
     except Exception as e:
         return {'error': json.dumps(e, default=str)}
@@ -2520,7 +2426,7 @@ def update_sequence(name):
         if format_:
             vals['format'] = format_
 
-        sequence.update(**vals)
+        sequence.update(**vals, permissions=session.get('perms'))
         return {'result': True}
     except Exception as e:
         return {'error': json.dumps(e, default=str)}
@@ -2530,7 +2436,7 @@ def update_sequence(name):
 def delete_sequence(name):
     try:
         sequence = p.ComponentSequence.from_db(primary_attr=name)
-        sequence.delete()
+        sequence.delete(permissions=session.get('perms'))
         return {'result': True}
     except Exception as e:
         return {'error': json.dumps(e, default=str)}

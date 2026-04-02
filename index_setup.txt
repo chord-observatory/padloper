@@ -95,12 +95,7 @@ mgmt.commit()
 g.addV().property("category", "user").property("time_added", 1)\
         .property("uid_added", "master").property("time_disabled", 2**63 - 1)\
         .property("active", true).property("replacement", 0)\
-<<<<<<< HEAD
         .property("name", "master").next()
-=======
-        .property("name", "master")\
-        .next()
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 user = g.V().has("category", "user").has("name", "master").next()
 g.addV().property("category", "user_group").property("time_added", 1)\
         .property("uid_added", "master").property("time_disabled", 2**63 - 1)\

@@ -471,7 +471,7 @@ function ComponentPage() {
         input += `&uid=${uid}`;
         input += `&comments=${comments}`;
 
-        fetch(withBase(input))
+        fetch(withBase(input), { method: 'POST' })
         .then(requireOkJson)
         .then((data) => {
             if (data.result) {
@@ -514,7 +514,7 @@ function ComponentPage() {
         }
         input = input.substring(0, input.length - 1);
 
-        fetch(withBase(input))
+        fetch(withBase(input), { method: 'POST' })
         .then(requireOkJson)
         .then(data => {
             if (data.result) {
@@ -579,7 +579,7 @@ function ComponentPage() {
         input += `&comments=${comments}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input))
+            fetch(withBase(input), { method: 'POST' })
             .then(requireOkJson)
             .then(data => {
                 if (data.result) {

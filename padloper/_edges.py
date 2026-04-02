@@ -242,19 +242,10 @@ class RelationUserGroup(Edge):
     ):
         Edge.__init__(self=self, id=id,
                       inVertex=inVertex, outVertex=outVertex)
-<<<<<<< HEAD
 
-    def add(self):
-        """Add this relation to the serverside
-        """
-        Edge.add(self, attributes={})
-=======
-    
     def add(self, permissions=None):
         """Add this relation to the serverside."""
-
         Edge.add(self, attributes={}, permissions=permissions)
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 class RelationUserAllowedGroup(Edge):

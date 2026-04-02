@@ -53,7 +53,8 @@ class ComponentSequence(Vertex):
     def _validate(self, **kwargs):
         return super()._validate(**kwargs)
 
-    def update(self, **kwargs):
+    @authenticated
+    def update(self, permissions=None, **kwargs):
         # set the new values client-side
         self.name = kwargs.get('name', self.name)
         self.component_type = kwargs.get('component_type', self.component_type)
@@ -77,7 +78,8 @@ class ComponentSequence(Vertex):
             .from_(__.V(self.component_type.id())).iterate()
         return
 
-    def delete(self):
+    @authenticated
+    def delete(self, permissions=None):
         # remove edges associated with this node before deleting the node
         g.t.V(self.id()).bothE().drop().iterate()
 

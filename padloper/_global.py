@@ -51,11 +51,7 @@ def start_connection(host: str = "ws://localhost", port: int=8182, traversal_sou
     global t
 
     _conn = DriverRemoteConnection(
-<<<<<<< HEAD
         f'{host}:{port}/gremlin',
-=======
-        f'{host}:{port}/gremlin', 
->>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
         traversal_source,
         message_serializer=GraphSONSerializersV3d0()
     )

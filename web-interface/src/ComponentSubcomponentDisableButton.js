@@ -73,7 +73,7 @@ const DisableButton = styled((props) => (
         input += `&name2=${otherName}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input))
+            fetch(withBase(input), { method: 'POST' })
             .then(requireOkJson)
             .then(data => {
                 if (data.result) {

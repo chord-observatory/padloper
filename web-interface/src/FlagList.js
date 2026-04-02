@@ -250,7 +250,7 @@ export default function FlagList() {
         input += `?name=${name}`;
 
         return new Promise((resolve, reject) => {
-            fetch(withBase(input))
+            fetch(withBase(input), { method: 'POST' })
               .then(async (res) => {
                 if (!res.ok) {
                     const text = await res.text();
