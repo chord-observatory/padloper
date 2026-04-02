@@ -1352,8 +1352,13 @@ class Component(Vertex):
         """
         # TODO: at_time has not yet been implemented!
         assert(at_time == None)
+<<<<<<< HEAD
 
         base = super().as_dict()
+=======
+        
+        base = super().as_dict(permissions=permissions)
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         if not bare:
             prop_dicts = [{**prop.as_dict(), **rel.as_dict()} \
@@ -1361,7 +1366,8 @@ class Component(Vertex):
                     self.get_all_properties(permissions=permissions)
             ]
 
-            conn_dicts = [{**{"name": conn.other_vertex(self).name},
+            conn_dicts = [{**{"name": conn.other_vertex(self,
+                                                        permissions=permissions).name},
                            **conn.as_dict()} \
                 for conn in self.get_connections(exclude_subcomps=True,
                                                  permissions=permissions)

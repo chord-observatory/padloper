@@ -85,10 +85,17 @@ def parse_filters(filtstr, attrs, funcs):
 def set_perms(username):
     """ Get user permissions from the database, and set as a sessions variable.
     """
+<<<<<<< HEAD
     # Cache user in session and compute permissions from DB
     session['user'] = username
+=======
+    print("------------------")
+    print(username)
+    session['uid'] = username
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     user = p.User.from_db(username)
     perms = user.get_permissions()
+    print(">>> ", perms)
     if perms:
         session['perms'] = perms
     else:
@@ -275,6 +282,7 @@ def components_tree(name, depth, time):
     :return: Return a dictionary of 'result' with nodes and edges
     :rtype: dict
     """
+<<<<<<< HEAD
     try:
         component = p.Component.from_db(str(escape(name)))
         res = {
@@ -283,6 +291,12 @@ def components_tree(name, depth, time):
         return res
     except Exception as e:
         return {'error': json.dumps(e, default=str)}
+=======
+    return {
+        'result': p.Component.from_db(str(escape(name)))\
+                   .as_dict(permissions=session.get('perms'))
+    }
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 @app.route("/api/component_list")
@@ -344,8 +358,15 @@ def get_component_list():
             order_by=[(order_by, order_direction)],
             filters=filt,
         )
+<<<<<<< HEAD
 
         return {'result': [c.as_dict(bare=True) for c in components]}
+=======
+    
+        return {'result': [c.as_dict(\
+                   bare=True, permissions=session.get('perms')) \
+                for c in components]}
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
     except Exception as e:
         print(e)
@@ -377,7 +398,12 @@ def set_component_type():
         component_type = p.ComponentType(name=val_name, comments=val_comments)
 
 
+<<<<<<< HEAD
         component_type.add(permissions=session.get('perms', []))
+=======
+        component_type.add(permissions=session.get('perms'),
+                           uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -457,7 +483,13 @@ def set_component_version():
         component_version = p.ComponentVersion(
             name=val_name, type=component_type, comments=val_comments)
 
+<<<<<<< HEAD
         component_version.add(permissions=session.get('perms', []))
+=======
+        component_version.add(permissions=session.get('perms'),
+                              uid=session.get('uid'))
+
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -563,7 +595,14 @@ def set_component():
             # Need to initialize an instance of a component first.
             component = p.Component(name=name, type=component_type,
                                     version=component_version)
+<<<<<<< HEAD
             component.add(permissions=session.get('perms', []))
+=======
+            print(component)
+            print(session.get("perms"))
+            component.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
         return {'result': True}
@@ -706,7 +745,12 @@ def set_property_type():
                                        n_values=int(val_values),
                                        allowed_types=allowed_list,
                                        comments=val_comments)
+<<<<<<< HEAD
         property_type.add(permissions=session.get('perms', []))
+=======
+        property_type.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -879,8 +923,14 @@ def get_component_type_list():
         order_by=[(order_by, order_direction)],
         filters=[{"name": TextP.containing(name_substring)}]
     )
+<<<<<<< HEAD
 
     return {"result": [t.as_dict() for t in types]}
+=======
+    
+    return {"result": [t.as_dict(permissions=session.get('perms')) \
+                       for t in types]}
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 @app.route("/api/component_type_count")
@@ -951,8 +1001,14 @@ def get_component_version_list():
         order_by=[(order_by, order_direction)],
         filters=filt
     )
+<<<<<<< HEAD
 
     return {"result": [v.as_dict() for v in vers]}
+=======
+    
+    return {"result": [v.as_dict(permissions=session.get('perms')) \
+                       for v in vers]}
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 @app.route("/api/component_version_count")
 def get_component_version_count():
@@ -1055,7 +1111,8 @@ def get_property_type_list():
         filters=filt
     )
 
-    return {"result": [pt.as_dict() for pt in ptypes]}
+    return {"result": [pt.as_dict(permissions=session.get('perms')) \
+                       for pt in ptypes]}
 
 
 @app.route("/api/component_set_property", methods=['POST'])
@@ -1432,14 +1489,23 @@ def get_connections():
 
     c = p.Component.from_db(val_name)
 
-    connections = c.get_connections(at_time=val_time)
+    connections = c.get_connections(at_time=val_time,
+                                    permissions=session.get('perms'))
 
     return {
         'result': [
             {
+<<<<<<< HEAD
                 'inVertex': conn.inVertex.as_dict(),
                 'outVertex': conn.outVertex.as_dict(),
                 'subcomponent': isinstance(conn, p.RelationSubcomponent),
+=======
+                'inVertex': conn.inVertex.as_dict(permissions=session.get('perms')),
+                'outVertex': conn.outVertex.as_dict(permissions=session.get('perms')),
+                'subcomponent': True if isinstance(conn,
+                                                   p.RelationSubcomponent) \
+                                else False,
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
                 'id': conn.id(),
             }
             for conn in connections
@@ -1561,9 +1627,16 @@ def set_flag_type():
         val_name = escape(request.args.get('name'))
         val_comments = escape(request.args.get('comments'))
 
+<<<<<<< HEAD
         # Create a FlagType with proper keyword args
         flag_type = p.FlagType(name=val_name, comments=val_comments)
         flag_type.add(permissions=session.get('perms', []))
+=======
+        # Need to initialize an instance of a component version first.
+        flag_type = p.FlagType(val_name, val_comments)
+        flag_type.add(permissions=session.get('perms'),
+                      uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -1620,9 +1693,16 @@ def set_flag_severity():
     try:
         val_name = escape(request.args.get('name'))
 
+<<<<<<< HEAD
         # Create a FlagSeverity with proper keyword args
         flag_severity = p.FlagSeverity(name=val_name)
         flag_severity.add(permissions=session.get('perms', []))
+=======
+        # Need to initialize an instance of a component version first.
+        flag_severity = p.FlagSeverity(val_name)
+        flag_severity.add(permissions=session.get('perms'),
+                          uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -1722,7 +1802,11 @@ def set_flag():
                       start=start,
                       end=end,
                       components=allowed_list)
+<<<<<<< HEAD
         flag.add(permissions=session.get('perms', []))
+=======
+        flag.add(permissions=session.get('perms'), uid=session.get('uid'))
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
         return {'result': True}
 
@@ -1983,6 +2067,7 @@ def get_flag_list():
         range_bounds = tuple(map(int, list_range.split(';')))
         assert len(range_bounds) == 2
 
+<<<<<<< HEAD
         flags = p.Flag.get_list(
             range=range_bounds,
             order_by=[(order_by, order_direction)],
@@ -2001,6 +2086,10 @@ def get_flag_list():
     except Exception as e:
         print(e)
         return {'error': json.dumps(e, default=str)}
+=======
+    return {"result": [f.as_dict(permissions=session.get('perms')) \
+                       for f in flags]}
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 
 @app.route("/api/flag_type_list")
@@ -2046,7 +2135,8 @@ def get_flag_type_list():
         filters=[{"name": TextP.containing(name_substring)}]
     )
 
-    return {"result": [ft.as_dict() for ft in flag_types]}
+    return {"result": [ft.as_dict(permissions=session.get('perms')) \
+                       for ft in flag_types]}
 
 @app.route("/api/flag_type_count")
 def get_flag_type_count():
@@ -2105,7 +2195,8 @@ def get_flag_severity_list():
     flag_severities = p.FlagSeverity.get_list(range=range_bounds,
             order_by=[(order_by, order_direction)])
 
-    return {"result": [fs.as_dict() for fs in flag_severities]}
+    return {"result": [fs.as_dict(permissions=session.get('perms')) \
+                       for fs in flag_severities]}
 
 
 @app.route("/api/set_permission", methods=['POST'])
@@ -2131,7 +2222,7 @@ def set_permission():
     # Need to initialize an instance of a component first.
     permission = p.Permission(val_name, val_comment)
 
-    permission.add()
+    permission.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -2170,7 +2261,7 @@ def set_user_group():
 
     # print(f"user_group: {user_group}")
 
-    user_group.add()
+    user_group.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -2218,7 +2309,7 @@ def set_user():
     else:
         user = p.User(val_uname, val_pwd_hash, val_institution)
 
-    user.add()
+    user.add(permissions=session.get('perms'), uid=session.get('uid'))
 
     return {'result': True}
 
@@ -2226,6 +2317,7 @@ def set_user():
 @app.route("/api/new_user", methods=['POST'])
 def new_user():
     val_username = request.form.get('username')
+<<<<<<< HEAD
     _val_institution = request.form.get('institution')
     # Create user with no groups, then ensure 'readonly' group and assign.
     user = p.User(name=val_username, groups=[])
@@ -2239,6 +2331,13 @@ def new_user():
         user.add_group(default_group)
     except Exception:
         pass
+=======
+    val_institution = request.form.get('institution')
+    user = p.User(val_username, val_institution)
+    user.add(permissions=session.get('perms'),
+             uid=session.get('uid'))
+    # print(user)
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     return {'result': True}
 
 
@@ -2304,6 +2403,7 @@ def new_set_user_group():
 @app.route("/api/get_permissions", methods=['GET'])
 def get_permissions():
     val_username = request.args.get('username')
+    print(val_username)
     user = p.User.from_db(val_username)
     perms = user.get_permissions()
     print(perms)
@@ -2316,21 +2416,33 @@ def get_user_list():
     users = p.User.get_list()
     # return {"result": [c.as_dict(bare=True) for c in components]}
     # return {'result': [p.User.as_dict(u) for u in users]}
+<<<<<<< HEAD
     return {'result': [p.User.as_dict(u) for u in users]}
 
+=======
+    return {'result': [p.User.as_dict(u, permissions=session.get('perms')) \
+                       for u in users]} 
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 @app.route("/api/get_user_groups", methods=["GET"])
 def get_user_groups():
     val_username = request.args.get('username')
     user = p.User.from_db(val_username)
     groups = user.get_groups()
+<<<<<<< HEAD
     return {'result': [gr.as_dict() for gr in groups]}
 
+=======
+    return {'result': [gr[0].as_dict(permissions=session.get('perms')) \
+                       for gr in groups]}
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
 
 @app.route("/api/get_user_group_list", methods=["GET"])
 def get_user_group_list():
     groups = p.UserGroup.get_list()
-    return {'result': [p.UserGroup.as_dict(gr) for gr in groups]}
+    return {'result': [p.UserGroup.as_dict(gr, 
+                                           permissions=session.get('perms')) \
+                       for gr in groups]}
 
 
 @app.route("/api/get_all_permissions", methods=["GET"])

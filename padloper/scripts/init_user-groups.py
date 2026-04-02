@@ -3,7 +3,25 @@ import padloper as p
 import _global as g
 
 
+<<<<<<< HEAD
 PROTECTED_PERMISSIONS = [
+=======
+# Start fresh by deleting instances of these groups from previous runs.
+print("Dropping old user groups.")
+p.g.t.V().has("name", 'Protected').has('category', p.UserGroup.category).drop().iterate()
+p.g.t.V().has("name", 'General').has('category', p.UserGroup.category).drop().iterate()
+p.g.t.V().has("name", 'Default').has('category', p.UserGroup.category).drop().iterate()
+print("\tDone.")
+
+print("Creating default user group.")
+protected_group = p.UserGroup(name='Default', permissions=['*'])
+protected_group._add()
+print("\tDone.")
+
+# protected
+protected_permissions = [
+    # Component:
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     'Component;add',
     'Component;replace',
     'Component;unset_property',
@@ -27,7 +45,19 @@ PROTECTED_PERMISSIONS = [
     'Flag;replace',
 ]
 
+<<<<<<< HEAD
 GENERAL_PERMISSIONS = [
+=======
+print("Creating protected user group.")
+protected_group = p.UserGroup(name='Protected', 
+                              permissions=protected_permissions)
+protected_group._add()
+print("\tDone.")
+
+# general
+general_permissions = [
+    # Component
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45
     'Component;connect',
     'Component;set_property',
     'Flag;add',
@@ -35,6 +65,7 @@ GENERAL_PERMISSIONS = [
     'Flag;set_end',
 ]
 
+<<<<<<< HEAD
 
 def ensure_group(name, permissions):
     try:
@@ -103,3 +134,13 @@ def main():
 
 if __name__ == '__main__':
     main()
+=======
+print("Creating general user group")
+general_group = p.UserGroup(name='General', permissions=general_permissions)
+general_group._add()
+print("\tDone.")
+
+
+# unprotected
+# unecessary, just check for user basic permissions
+>>>>>>> ab7032d2af7614a4f68629557fc374f56b170d45

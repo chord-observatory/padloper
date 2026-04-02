@@ -537,7 +537,8 @@ class Vertex(Element):
 
 
     @authenticated
-    def add(self, strict_add=False, strict_check=True, permissions=None):
+    def add(self, strict_add=False, strict_check=True, permissions=None,
+            uid=None):
         """Add the vertex to the Janusgraph DB.
 
         :param strict_add: If False, then do not throw an error if the vertex
@@ -555,7 +556,7 @@ class Vertex(Element):
                         f"Vertex already exists in the database.")
             return self.__class__.from_db(self.name)
         else:
-            self.uid_added = _get_user().name
+            self.uid_added = _get_user().name if uid is None else uid
             self.time_added = int(time.time())
             self.active = True
             self.replacement = 0
@@ -610,7 +611,7 @@ class Vertex(Element):
 
             # Add any edges.
             for e in edges:
-                e.add()
+                e.add(permissions=permissions)
 
             Vertex._cache_vertex(self)
 
@@ -698,7 +699,7 @@ class Vertex(Element):
 
     @authenticated
     def replace(self, newVertex, disable_time: int = int(time.time()),
-                permissions=None):
+                permissions=None, uid=None):
         """Replaces the vertex in the JanusGraph DB with the new vertex by
         changing its property 'active' from true to false and transfering
         all the edges to the new vertex. The old vertex contains the ID of
@@ -728,10 +729,11 @@ class Vertex(Element):
 
         # The 'replacement' property now points to the new vertex that replaced
         # the self vertex, and it needs to be disabled.
+        uid =  _get_user().name if uid is None else uid
         g.t.V(self.id()).property('replacement', newVertex.id()) \
                         .property('active', False) \
                         .property('time_disabled', disable_time) \
-                        .property('uid_disabled', _get_user().name).iterate()
+                        .property('uid_disabled', uid).iterate()
 
         # List of all the properties of the outgoing edges from the self vertex.
         o_edges_values_list = g.t.V(self.id()).bothE().valueMap().toList()
@@ -833,15 +835,18 @@ class Vertex(Element):
             g.t.V(self.id()).bothE()[i].property('active', False).property(
                 'time_disabled', disable_time).next()
 
-    def as_dict(self):
+    @authenticated
+    def as_dict(self, permissions=None):
         ret = {}
         for a in self._vertex_attrs:
             if issubclass(a.type, Vertex):
                 if a.is_list:
-                    ret[a.name] = [x.as_dict() for x in getattr(self, a.name)]
+                    ret[a.name] = [x.as_dict(permissions=permissions) \
+                                   for x in getattr(self, a.name)]
                 else:
                     if getattr(self, a.name) is not None:
-                        ret[a.name] = getattr(self, a.name).as_dict()
+                        ret[a.name] = getattr(self, a.name).as_dict(\
+                            permissions=permissions)
             else:
                 ret[a.name] = getattr(self, a.name)
         for x in ["time_added", "uid_added", "time_disabled", "uid_disabled",
@@ -1134,7 +1139,7 @@ class Edge(Element):
 
     @authenticated
     def replace(self, newEdge, disable_time: int = int(time.time()),
-                permissions=None):
+                permissions=None, uid=None):
         """Replaces the edge in the JanusGraph DB with a new edge by
         changing its property 'active' from true to false, and storing the id
         of the new edge as an attribute.
@@ -1158,10 +1163,11 @@ class Edge(Element):
 
         # The 'replacement' property now points to the new edge that replaced
         # the self edge, and the self edge needs to be disabled.
+        uid = _get_user().name if uid is None else uid
         g.t.E(self.id()).property('replacement', newEdge.id()) \
                         .property('active', False) \
                         .property('time_disabled', disable_time) \
-                        .property('uid_disabled', _get_user().name).iterate()
+                        .property('uid_disabled', uid).iterate()
 
         return newEdge
 
@@ -1200,10 +1206,10 @@ class Timestamp(object):
     edit_time: float
     comments: str
 
-    def __init__(self, at_time, comments=""):
+    def __init__(self, at_time, comments="", uid=None):
         """For creating a new timestamp, rather than reading in from the DB.
         """
-        self.uid = _get_user().name
+        self.uid = _get_user().name if uid is None else uid
         self.time = at_time
         self.edit_time = int(time.time())
         self.comments = comments
@@ -1387,7 +1393,7 @@ class UserGroup(Vertex):
     _vertex_attrs: list = [
         VertexAttr("name", str),
         VertexAttr("permissions", str, is_list=True),
-        VertexAttr("comments", str, optional=True)
+        VertexAttr("comments", str, optional=True, default="")
     ]
     primary_attr: str = "name"
 
