@@ -138,6 +138,30 @@ class Component(Vertex):
 
     @classmethod
     def fetch_or_create(cls, name: str, attrs: List[Tuple[str, str]]):
+        """Fetch the Component from the database or create a new Component
+        if it does not yet exist in the database.
+
+        If the Component does not exist in the database yet, the component
+        type may be inferred if the name matches a given sequence. Otherwise,
+        the component type must be provided in the attrs list. The new
+        Component will only exist on the python side until .add() is
+        explicitly run. This is useful for queuing component operations before
+        adding the components to the database (for validation purposes).
+
+        Returns a python representation of the existing component or the
+        component that will later be created with .add(), along with a boolean
+        of whether the component exists in the database yet.
+
+        :param name: Component name
+        :type name: str
+
+        :param attrs: Attributes associated with the component
+        :type attrs: List[Tuple[str, str]]
+
+        :returns: Python representation of the component and a boolean of
+        whether the component exists in the database yet.
+        :rtype: Tuple[Component, bool]
+        """
         # import here to avoid circular import issues
         from _sequences import ComponentSequence
 

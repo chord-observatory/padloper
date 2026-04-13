@@ -145,15 +145,15 @@ function App() {
             // access to the React Flow hooks:
             // https://reactflow.dev/docs/api/react-flow-provider/
           }
-          {/* <Route
+          <Route
             exact={true}
-            path="/component-connections"
+            path="/legacy-visualizer"
             element={
               <ReactFlowProvider>
                 <ComponentConnectionVisualizer />
               </ReactFlowProvider>
             }
-          /> */}
+          />
 
           {
             /**

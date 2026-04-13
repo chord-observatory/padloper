@@ -188,10 +188,10 @@ function Header() {
                             name: 'Component Connections',
                             link: `/component-connections`
                         },
-                        // {
-                        //     name: 'New Visualization',
-                        //     link: `/new-visualizer`
-                        // },
+                        {
+                            name: 'Legacy Visualizer',
+                            link: `/legacy-visualizer`
+                        },
                     ]}
                 />
 

@@ -143,8 +143,7 @@ def check_permission(permission, class_name, method_name):
         raise NoPermissionsError("User does not have the required "
                                  "permissions to perform this action "
                                  f"({class_name};{method_name}). "
-                                 f"User permissions: {permission}. "
-                                 f"User: {user.name}")
+                                 f"User permissions: {permission}. ")
 
 
 def authenticated(func):
@@ -1452,7 +1451,7 @@ class User(Vertex):
 
         # Direction: group -> user (outVertex=group)
         e = RelationUserGroup(inVertex=self, outVertex=group)
-        e.add(permissions=permissions)
+        e.add()
 
         # Keep local attribute view in sync for this instance
         try:
