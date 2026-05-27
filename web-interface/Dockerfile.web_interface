@@ -1,9 +1,10 @@
 FROM node:20-alpine
 
-RUN apk update && apk upgrade --no-cache
+# Apply available OS security updates
+RUN apk upgrade --no-cache
 
 # Keep npm itself current
-RUN npm install -g npm@latest
+RUN npm install -g npm@latest && npm cache clean --force
 
 WORKDIR /web-interface
 
@@ -15,8 +16,8 @@ RUN if [ -f package-lock.json ]; then \
       npm ci --no-audit --no-fund; \
     else \
       npm install --no-audit --no-fund; \
-    fi
-RUN npm cache clean --force
+    fi \
+    && npm cache clean --force
 
 # Copy source
 COPY ./web-interface/public/ /web-interface/public
@@ -30,7 +31,7 @@ ENV REACT_APP_BASE_PATH=${REACT_APP_BASE_PATH:-/padloper}
 
 # Build static assets and serve with a lightweight server on 4301
 RUN npm run build
-RUN npm install -g serve
+RUN npm install -g serve && npm cache clean --force
 
 EXPOSE 4301
 CMD [ "serve", "-s", "build", "-l", "4301" ]
