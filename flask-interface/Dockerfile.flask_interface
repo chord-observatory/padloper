@@ -1,5 +1,12 @@
 FROM python:3.10-slim
 
+# Apply available OS security updates
+RUN apt-get update && apt-get -y upgrade && \
+    rm -rf /var/lib/apt/lists/*
+
+# Keep pip itself current
+RUN pip install --no-cache-dir --upgrade pip
+
 WORKDIR /
 
 COPY requirements.txt requirements.txt
