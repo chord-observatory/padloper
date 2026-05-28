@@ -333,8 +333,18 @@ def get_component_list():
 
         # extract the filters
         filters = request.args.get('filters')
+        # TODO(case-insensitive search): the name filter below uses
+        # TextP.containing, which is case-sensitive. A previous attempt used
+        # TextP("regex", "(?i)...") but TinkerPop 3.5.x (shipped by
+        # JanusGraph 0.6.2) doesn't support a regex predicate, so that
+        # variant failed server-side with "Invalid OpProcessor [null]".
+        # Restoring containing matches the pre-2026 behavior. To regain
+        # case-insensitivity, options are: (a) upgrade JanusGraph to a
+        # version with TinkerPop 3.6+ (where TextP.regex works), or
+        # (b) add an indexed name_lower property and filter against that.
+        # Same pattern is repeated below for property/version/flag filters.
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [lambda x: TextP("regex", f"(?i){re.escape(x)}"),
+                            [lambda x: TextP.containing(x),
                              lambda x: x, lambda x: x])
 
         # make sure that the range bounds only consist of a min/max, and that
@@ -804,7 +814,7 @@ def get_component_count():
 
         filters = request.args.get('filters')
         filt = parse_filters(filters, ["name", "type", "version"],
-                            [lambda x: TextP("regex", f"(?i){re.escape(x)}"),
+                            [lambda x: TextP.containing(x),
                              lambda x: x, lambda x: x])
 
         return {'result': p.Component.get_count(filters=filt)}
@@ -944,7 +954,7 @@ def get_component_version_list():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "type"],
-        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
+        [lambda x: TextP.containing(x), lambda x: x]
     )
 
     range_bounds = tuple(map(int, list_range.split(';')))
@@ -979,7 +989,7 @@ def get_component_version_count():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "type"],
-        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
+        [lambda x: TextP.containing(x), lambda x: x]
     )
 
     return {'result': p.ComponentVersion.get_count(filters=filt)}
@@ -1003,7 +1013,7 @@ def get_property_type_count():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "allowed_types"],
-        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
+        [lambda x: TextP.containing(x), lambda x: x]
     )
 
     return {
@@ -1047,7 +1057,7 @@ def get_property_type_list():
     filters = request.args.get('filters')
     filt = parse_filters(
         filters, ["name", "allowed_types"],
-        [lambda x: TextP("regex", f"(?i){re.escape(x)}"), lambda x: x]
+        [lambda x: TextP.containing(x), lambda x: x]
     )
 
     range_bounds = tuple(map(int, list_range.split(';')))
