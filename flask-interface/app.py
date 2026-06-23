@@ -882,7 +882,7 @@ def get_component_type_list():
     component_range = escape(request.args.get('range'))
     order_by = escape(request.args.get('orderBy'))
     order_direction = escape(request.args.get('orderDirection'))
-    name_substring = escape(request.args.get('nameSubstring'))
+    name_substring = escape(request.args.get('nameSubstring') or '')
 
     range_bounds = tuple(map(int, component_range.split(';')))
 
@@ -913,7 +913,7 @@ def get_component_type_count():
     :rtype: dict
     """
 
-    name_substring = escape(request.args.get('nameSubstring'))
+    name_substring = escape(request.args.get('nameSubstring') or '')
 
     return {'result': p.ComponentType.get_count(
             filters=[{"name": TextP.containing(name_substring)}])}
@@ -2052,7 +2052,7 @@ def get_flag_type_list():
     flag_range = escape(request.args.get('range'))
     order_by = escape(request.args.get('orderBy'))
     order_direction = escape(request.args.get('orderDirection'))
-    name_substring = escape(request.args.get('nameSubstring'))
+    name_substring = escape(request.args.get('nameSubstring') or '')
 
     range_bounds = tuple(map(int, flag_range.split(';')))
 
@@ -2083,7 +2083,7 @@ def get_flag_type_count():
     :rtype: dict
     """
 
-    name_substring = escape(request.args.get('nameSubstring'))
+    name_substring = escape(request.args.get('nameSubstring') or '')
 
     return {'result': p.FlagType.get_count(
             filters=[{"name": TextP.containing(name_substring)}]

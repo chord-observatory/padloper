@@ -92,6 +92,29 @@ services:
       padloper-network:
         ipv4_address: 172.20.0.24
     restart: unless-stopped
+  # One-shot migration runner. See migrations/README.md.
+  # Runs on every `docker compose up`; idempotent via marker files in
+  # /var/lib/janusgraph/.migrations/. Migrations that detect "nothing to do"
+  # exit 0 quickly. The main janusgraph service waits for this to complete
+  # successfully before starting.
+  janusgraph-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.janusgraph
+    image: padloper_chord-janusgraph
+    container_name: janusgraph-migrate
+    platform: linux/amd64
+    entrypoint: ["/usr/local/bin/run-migrations.sh"]
+    restart: "no"
+    depends_on:
+      - cassandra
+      - elasticsearch
+    volumes:
+      - janusgraph_data:/var/lib/janusgraph
+    networks:
+      padloper-network:
+        ipv4_address: 172.20.0.26
+
   janusgraph:
     build:
       context: .
@@ -114,8 +137,12 @@ services:
       - index.search.backend=elasticsearch
       - index.search.hostname=elasticsearch
     depends_on:
-      - cassandra
-      - elasticsearch
+      cassandra:
+        condition: service_started
+      elasticsearch:
+        condition: service_started
+      janusgraph-migrate:
+        condition: service_completed_successfully
     volumes:
       - janusgraph_data:/var/lib/janusgraph
     networks:

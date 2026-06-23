@@ -4,34 +4,115 @@ A repository containing Python interface for accessing the HIRAX Layout DB, as w
 
 ## How to start everything up
 
-**N.B.**: It is possible to run everything in Docker: scroll to the end of this README for instructions on this option and for a quickstart guide. The information in this and subsequent sections is for installing everything by hand, which is probaby best for development environments and perhaps for some production environments.
+**N.B.**: It is possible to run everything in Docker — scroll to [Running
+Padloper in Docker](#running-padloper-in-docker) for that option and a
+quickstart. This and the next several sections cover running everything by
+hand (no Docker), which is best for development.
 
-Assuming that JanusGraph, Flask, and React are installed and configured (see sections below), we can start the JanusGraph server, followed by the Flask server, and then the React server for testing.
+Padloper has four moving parts, started in this order:
 
-To start the JanusGraph server, do
+1. **JanusGraph** (with Cassandra + Elasticsearch) — the graph database, on port `8182`.
+2. **Flask backend** (`flask-interface`) — the API, on port `4300`.
+3. **OAuth proxy** (`oauth-proxy-server`) — GitHub OAuth helper, on port `4000`.
+4. **React frontend** (`web-interface`) — the UI dev server, on port `4301`.
+
+The installation/configuration of each is described in the sections below.
+This section assumes they are already installed and configured.
+
+### Quick setup (recommended)
+
+The helper script `scripts/setup_local.sh` automates the dependency setup. It:
+
+1. **checks prerequisites** (python ≥3.9, node, npm, java),
+2. **validates required configuration up front** (see below) — failing *before*
+   any install work if something is missing,
+3. creates a Python virtualenv and installs the backend (`requirements.txt` +
+   editable `padloper`),
+4. runs `npm install` for both Node projects,
+5. writes `.env` (generating a `SECRET_KEY` and defaulting `PROXY_SERVER_URL`
+   to `http://localhost:4000/`), then prints the exact start commands.
+
+**Provide your GitHub OAuth credentials first.** The script requires
+`GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` (it cannot generate
+them). Supply them either by exporting them in your shell **or** by editing them
+into `.env` — the script reads both and persists them to `.env`:
+
 ```
-cd janusgraph-full-0.x.xx/
+export GITHUB_OAUTH_CLIENT_ID=...
+export GITHUB_OAUTH_CLIENT_SECRET=...
+bash scripts/setup_local.sh
+```
+
+Other modes:
+
+```
+bash scripts/setup_local.sh --check-only        # verify prerequisites + config only (no install)
+bash scripts/setup_local.sh --skip-oauth        # set up deps now, add OAuth creds later
+bash scripts/setup_local.sh --with-janusgraph   # also download the JanusGraph 0.6.x bundle
+```
+
+If the OAuth credentials are missing the script tells you exactly what to set
+and aborts (use `--skip-oauth` to proceed without them). The manual steps below
+explain what the script does and how to run each piece by hand.
+
+### 1. Start JanusGraph
+
+Using the "full" JanusGraph distribution (which bundles Cassandra and
+Elasticsearch — see [JanusGraph Installation](#janusgraph-installation-instructions)):
+```
+cd janusgraph-full-0.6.x/
 bin/janusgraph.sh start
 ```
+The first time, seed the schema and the initial `master`/`admin` accounts by
+running the contents of `index_setup.txt` in the Gremlin console (see
+[Connecting to JanusGraph](#connecting-to-janusgraph)).
 
-Once the JanusGraph server is started, we start the Flask server (using port 4300, which is currently the default port that the React server communicates with):
+### 2. Start the Flask backend
+
+From the repository root, install the Python dependencies and the `padloper`
+package itself (once):
+```
+pip install -r requirements.txt
+pip install -e .            # makes `import padloper` work from anywhere
+```
+Create a `.env` file at the repository root (see
+[Environment configuration](#environment-configuration)). For a local run the
+important value is:
+```
+PROXY_SERVER_URL=http://localhost:4000/
+SECRET_KEY=<any-random-string>
+```
+Then start the backend (port `4300`, the port the frontend expects). The graph
+connection defaults to `ws://localhost:8182`; override with the `DB_HOST` env
+var if JanusGraph is elsewhere:
 ```
 cd flask-interface/
-flask run --no-debugger -p 4300
+flask run -p 4300
 ```
 
-Once that is finished, open up another terminal and start the Oauth server
+### 3. Start the OAuth proxy
+
 ```
 cd oauth-proxy-server
-npm install # For the first time running the project
-npm start
+npm install      # first run only
+CLIENT_ID=<github-oauth-client-id> CLIENT_SECRET=<github-oauth-client-secret> npm start
 ```
+**Note:** the proxy reads `CLIENT_ID` / `CLIENT_SECRET` (not the
+`GITHUB_OAUTH_*` names used by Docker Compose — Compose maps them for you). It
+listens on port `4000`.
 
-Finally, we start the React server:
+### 4. Start the React frontend
+
 ```
 cd web-interface/
-npm start
+npm install      # first run only
+REACT_APP_GITHUB_CLIENT_ID=<github-oauth-client-id> REACT_APP_BASE_PATH=/padloper npm start
 ```
+The dev server runs on port `4301` and serves the app under `/padloper`. Its
+built-in dev proxy (`src/setupProxy.js`) forwards `/api` → `localhost:4300`
+(Flask) and `/oauth` → `localhost:4000` (OAuth proxy), so no nginx is needed
+locally. Override those targets with the `API_URL` / `OAUTH_URL` env vars if
+needed. Open <http://localhost:4301/padloper> in your browser.
 
 ## JanusGraph Installation Instructions
 
@@ -39,28 +120,37 @@ The following steps outline how to install [JanusGraph](https://janusgraph.org/)
 
 ### Installing Java
 
-JanusGraph is built on top of Apache TinkerPop, which, in turn, is built on top of Java and hence requires Java SE 8. The implementation of Java that we will install is OpenJDK 1.8. First, refresh the list of available packages:
+JanusGraph is built on top of Apache TinkerPop and requires Java. JanusGraph
+0.6.x supports both JDK 8 and JDK 11; we recommend **OpenJDK 11**, since Java 8
+no longer receives free security updates (the Docker image also uses 11). First,
+refresh the list of available packages:
 ```
 sudo apt update
 ```
 
-Next, install OpenJDK 1.8:
+Next, install OpenJDK 11:
 ```
-sudo apt install openjdk-8-jdk
+sudo apt install openjdk-11-jdk
 ```
 
-To verify that the correct version has been installed, run `java -version`. A version similar to `openjdk version "1.8.0_292"` should be displayed.
+To verify that the correct version has been installed, run `java -version`. A version similar to `openjdk version "11.0.x"` should be displayed.
 
 ### Setting the `$JAVA_HOME` environment variable
 
-Head to `/usr/lib/jvm/` and locate the installation fo the JDK. It should look similar to `/usr/lib/jvm/java-8-openjdk-amd64`. Set the `$JAVA_HOME` environment variable to the point to the installation of the JDK:
+Head to `/usr/lib/jvm/` and locate the installation of the JDK. It should look similar to `/usr/lib/jvm/java-11-openjdk-amd64`. Set the `$JAVA_HOME` environment variable to point to the installation of the JDK:
 ```
-export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ```
 
 ### Setting up JanusGraph
 
-From the [JanusGraph Releases](https://github.com/JanusGraph/janusgraph/releases), download the .zip of the "full" installation of the latest JanusGraph version (the file name should resemble `janusgraph-full-X.X.X.zip`, where `X.X.X` is the version number), and extract the contents. This "full" installation includes pre-configured JanusGraph, Apache Cassandra and Elasticsearch.
+From the [JanusGraph Releases](https://github.com/JanusGraph/janusgraph/releases), download the .zip of the "full" installation of JanusGraph **0.6.x** (the file name should resemble `janusgraph-full-0.6.X.zip`), and extract the contents. This "full" installation includes pre-configured JanusGraph, Apache Cassandra and Elasticsearch, all defaulting to `localhost`. (Use 0.6.x to match the TinkerPop/gremlinpython version this codebase targets; see the Gremlin-Python note above.)
+
+> **Note:** All `conf/...` paths in this section refer to files **inside the
+> extracted JanusGraph bundle**, which default to `localhost`. The
+> `conf/janusgraph-cql-es-prod.properties` file in *this repository* is used
+> only by the Docker build (it points at the Compose container IPs) — do not
+> use it for a by-hand install.
 
 **Important**: You should follow all the steps below for proper functioning of
 padloper.
@@ -103,15 +193,17 @@ which will enable sending all queries directly to the JanusGraph server and avoi
 
 ### Gremlin-Python
 
-We can also access the JanusGraph server from a Python interface. First, we install the `gremlinpython` Python module by running
-```
-pip install gremlinpython
-```
+We can also access the JanusGraph server from a Python interface using the
+`gremlinpython` module. **Normally you do not install this by hand** — it is
+pinned in `requirements.txt` (along with the rest of the backend deps) and
+installed via `pip install -r requirements.txt`.
 
-*Important*: make sure the version of `gremlinpython` is supported by your version of Janusgraph. For instance, for v0.6.2 of Janusgraph, more recent versions of `gremlinpython` are not supported and you have to do:
-```
-pip install gremlinpython==3.5.3
-```
+*Important*: the `gremlinpython` version must be compatible with your JanusGraph
+server's TinkerPop version. `requirements.txt` currently pins
+`gremlinpython==3.7.3`, which has been tested against the JanusGraph 0.6.2
+server (TinkerPop 3.5.x) used here, including the heavier traversals. Note that
+a 3.7 client against a 3.5.x server is not *formally* supported cross-minor by
+TinkerPop; if you upgrade or downgrade JanusGraph, re-check this pin.
 
 Now, we may create a Python file to connect to and query the graph:
 ```py
@@ -143,28 +235,42 @@ This code will print a list of the vertices of the graph.
 > 
 > Otherwise, head to the [Maven repository for Netty](https://mvnrepository.com/artifact/io.netty) and download the latest (stable) versions for `netty-all`, `netty-common`, `netty-buffer`, `netty-codec`, `netty-handler`, `netty-resolver`, and `netty-transport`, and replace the old .jar files in `lib/` with these new files.
 
-## Installing Flask
+## Installing the Python backend
 
-To install Flask, run the following command:
+Install all backend dependencies (Flask, gremlinpython, etc.) from the pinned
+`requirements.txt`, and install the `padloper` package itself in editable mode
+so `import padloper` resolves from any working directory:
 ```
-pip install -Iv Flask==2.0.1 
-pip install -Iv python-dotenv==0.19.0
+pip install -r requirements.txt
+pip install -e .
 ```
-This will install `Flask` version 2.0.1 and `python-dotenv` version 0.19.0 (see the TODOs, updating these will make Flask not work), which will read the `.flaskenv` file in the flask-interface folder to configure the Flask server.
+Run these from the repository root, ideally inside a virtual environment
+(`python -m venv venv && source venv/bin/activate`). `python-dotenv` (included
+in `requirements.txt`) reads the `.flaskenv` file in `flask-interface/` to
+configure the Flask CLI, and the root `.env` file for application settings.
+
+> The backend was upgraded to Flask 3.x. The previous Flask 2.0.1 / older pins
+> in earlier versions of this README are no longer required; use
+> `requirements.txt` as the source of truth.
 
 ## Environment configuration
 
 Copy `.env.template` to `.env` and set values as needed:
 
-- `PROXY_SERVER_URL` — OAuth proxy base URL (e.g., `http://oauth-proxy-server:4000/` when using Docker Compose).
+- `PROXY_SERVER_URL` — OAuth proxy base URL the Flask backend calls. Use
+  `http://oauth-proxy-server:4000/` under Docker Compose, or
+  `http://localhost:4000/` for a local (non-Docker) run.
 - `SECRET_KEY` — Flask secret key for sessions.
 - `GITHUB_OAUTH_CLIENT_ID` — GitHub OAuth App Client ID (frontend + proxy).
 - `GITHUB_OAUTH_CLIENT_SECRET` — GitHub OAuth App Client Secret (proxy only).
 
 Notes:
 - `.env` is ignored by git; do not commit secrets.
-- When running via Docker Compose, the `.env` file at the repository root is injected into the `flask-interface` and `oauth-proxy-server` services automatically, and is also used for build-time args for the web interface.
-- When running locally, the backend loads `.env` via `python-dotenv`.
+- When running via Docker Compose, the `.env` file at the repository root is injected into the `flask-interface` and `oauth-proxy-server` services automatically, and is also used for build-time args for the web interface. Compose maps `GITHUB_OAUTH_CLIENT_ID` → the proxy's `CLIENT_ID` and the web build's `REACT_APP_GITHUB_CLIENT_ID` for you.
+- When running locally, the backend loads `.env` via `python-dotenv`, **but the `oauth-proxy-server` and the React dev server do not**. For a by-hand run you must pass their env vars directly (note the different names):
+  - OAuth proxy: `CLIENT_ID` and `CLIENT_SECRET` (the values of `GITHUB_OAUTH_CLIENT_ID` / `_SECRET`).
+  - React dev server: `REACT_APP_GITHUB_CLIENT_ID` and `REACT_APP_BASE_PATH=/padloper`.
+  - See the [start-everything-up](#how-to-start-everything-up) steps for the exact commands.
 
 ## Authentication, Users, and Permissions
 
@@ -180,7 +286,22 @@ Notes:
 
 ## Setting up React
 
-In `web-interface`, run `npm install` to install all dependencies. However, `react-scripts` must be set to version `4.0.3` (see the TODOs). 
+In `web-interface`, run `npm install` to install all dependencies (a
+`package-lock.json` is committed, so `npm ci` works for reproducible installs).
+The frontend uses React 18 and `react-scripts` 5.x — the old "must be 4.0.3"
+constraint no longer applies.
+
+The dev server is started with `npm start` (see
+[step 4 above](#4-start-the-react-frontend)). It needs two env vars:
+
+- `REACT_APP_GITHUB_CLIENT_ID` — your GitHub OAuth App client ID (enables sign-in).
+- `REACT_APP_BASE_PATH` — the URL base path; use `/padloper` to match the rest
+  of the stack.
+
+During local development, `src/setupProxy.js` proxies API and OAuth requests to
+the backend (`4300`) and OAuth proxy (`4000`) so you don't need nginx. In
+production (Docker), nginx handles this routing instead and the app is served
+from the static build.
 
 
 ## Running Padloper in Docker

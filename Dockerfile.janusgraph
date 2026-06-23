@@ -2,8 +2,9 @@ FROM janusgraph/janusgraph:0.6.2
 
 USER root
 
-# JanusGraph 1.x requires JDK 11+. The base image already ships with a JDK,
-# but we install OpenJDK 11 explicitly to keep JAVA_HOME predictable.
+# Install OpenJDK 11 (JanusGraph 0.6.x supports JDK 11; the image already
+# ships with a JDK, but we install OpenJDK 11 explicitly to keep JAVA_HOME
+# predictable and to use a non-EOL JDK).
 RUN apt-get update && \
     apt-get install -y openjdk-11-jdk && \
     apt-get clean && \
@@ -12,9 +13,18 @@ RUN apt-get update && \
 ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
 ENV JAVA_OPTS="-Xms512m -Xmx512m"
 
-# Add custom JanusGraph configuration
+# Add custom JanusGraph configuration. The -server suffix and matching
+# JANUS_PROPS_TEMPLATE=cql-es env var in docker-compose.yml are required for
+# the JanusGraph entrypoint to actually load this file.
 COPY conf/janusgraph-cql-es-prod.properties /opt/janusgraph/conf/janusgraph-cql-es-server.properties
 COPY index_setup.groovy /docker-entrypoint-initdb.d/index_setup.groovy
+
+# Migration framework: see migrations/README.md. Used by the one-shot
+# janusgraph-migrate service in docker-compose.yml; harmless to ship in the
+# main image too (the main service entrypoint does not invoke it).
+COPY migrations/ /opt/migrations/
+RUN install -m 0755 /opt/migrations/run-migrations.sh /usr/local/bin/run-migrations.sh && \
+    chmod 0755 /opt/migrations/*.sh
 
 # Expose the necessary port
 EXPOSE 8182
