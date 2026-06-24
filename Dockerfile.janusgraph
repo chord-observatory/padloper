@@ -1,8 +1,12 @@
-FROM janusgraph/janusgraph:0.6.2
+# JG_VERSION selects the JanusGraph base image. Default 1.1.0 (TinkerPop 3.7 —
+# provides server-side TextP.regex). Build with --build-arg JG_VERSION=0.6.2
+# for rollback to the pre-bump server.
+ARG JG_VERSION=1.1.0
+FROM janusgraph/janusgraph:${JG_VERSION}
 
 USER root
 
-# Install OpenJDK 11 (JanusGraph 0.6.x supports JDK 11; the image already
+# Install OpenJDK 11 (JanusGraph 1.1.0 supports JDK 8/11; the image already
 # ships with a JDK, but we install OpenJDK 11 explicitly to keep JAVA_HOME
 # predictable and to use a non-EOL JDK).
 RUN apt-get update && \
