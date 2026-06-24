@@ -23,13 +23,6 @@ ENV JAVA_OPTS="-Xms512m -Xmx512m"
 COPY conf/janusgraph-cql-es-prod.properties /opt/janusgraph/conf/janusgraph-cql-es-server.properties
 COPY index_setup.groovy /docker-entrypoint-initdb.d/index_setup.groovy
 
-# Migration framework: see migrations/README.md. Used by the one-shot
-# janusgraph-migrate service in docker-compose.yml; harmless to ship in the
-# main image too (the main service entrypoint does not invoke it).
-COPY migrations/ /opt/migrations/
-RUN install -m 0755 /opt/migrations/run-migrations.sh /usr/local/bin/run-migrations.sh && \
-    chmod 0755 /opt/migrations/*.sh
-
 # Expose the necessary port
 EXPOSE 8182
 

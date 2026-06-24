@@ -33,7 +33,7 @@ set -euo pipefail
 # Environment overrides:
 #   PYTHON_BIN          python interpreter to use   (default: python3)
 #   VENV_DIR            virtualenv location         (default: <repo>/venv)
-#   JANUSGRAPH_VERSION  JanusGraph bundle version   (default: 0.6.2)
+#   JANUSGRAPH_VERSION  JanusGraph bundle version   (default: 1.1.0)
 # ---------------------------------------------------------------------------
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -41,7 +41,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 VENV_DIR="${VENV_DIR:-$REPO_ROOT/venv}"
-JANUSGRAPH_VERSION="${JANUSGRAPH_VERSION:-0.6.2}"
+JANUSGRAPH_VERSION="${JANUSGRAPH_VERSION:-1.1.0}"
 ENV_FILE="$REPO_ROOT/.env"
 
 CHECK_ONLY=0
@@ -84,7 +84,7 @@ Usage:
 Environment overrides:
   PYTHON_BIN          python interpreter to use   (default: python3)
   VENV_DIR            virtualenv location         (default: <repo>/venv)
-  JANUSGRAPH_VERSION  JanusGraph bundle version   (default: 0.6.2)
+  JANUSGRAPH_VERSION  JanusGraph bundle version   (default: 1.1.0)
 EOF
   exit 0
 }
@@ -172,7 +172,7 @@ check_prereqs() {
   if have java; then
     local jver; jver="$(java -version 2>&1 | head -1)"
     if java -version 2>&1 | grep -qE '"(11|17|21)\.'; then ok "java: $jver"
-    else warn "java present but not 11/17/21: $jver (JanusGraph 0.6.x prefers JDK 11)"; fi
+    else warn "java present but not 11/17/21: $jver (JanusGraph 1.1.0 supports JDK 8/11; 11 recommended)"; fi
   else
     warn "java not found — only required to run JanusGraph locally (JDK 11 recommended)"
   fi
@@ -319,7 +319,7 @@ setup_janusgraph() {
     printf '\nschema.default=none\n' >> "$props"
     info "Added schema.default=none to the bundle config."
   fi
-  for opt in "$dir/conf/jvm-8.options" "$dir/conf/jvm-11.options"; do
+  for opt in "$dir/conf/jvm-11.options" "$dir/conf/jvm-17.options"; do
     [ -f "$opt" ] && sed -i 's/-Xms[0-9]\+[mg]/-Xms512m/; s/-Xmx[0-9]\+[mg]/-Xmx512m/' "$opt" || true
   done
   ok "JanusGraph configured. Start it with:  ( cd ${dir#"$REPO_ROOT"/} && bin/janusgraph.sh start )"
@@ -333,7 +333,7 @@ print_next_steps() {
   if [ "$WITH_JANUSGRAPH" -eq 1 ]; then
     jg_hint="( cd janusgraph-full-$JANUSGRAPH_VERSION && bin/janusgraph.sh start )   # then seed schema: see README"
   else
-    jg_hint="Install/start JanusGraph 0.6.x (see README), or re-run with --with-janusgraph"
+    jg_hint="Install/start JanusGraph 1.1.x (see README), or re-run with --with-janusgraph"
   fi
   cat <<EOF
 
