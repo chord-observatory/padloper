@@ -36,6 +36,21 @@ oldVProps = oldGraph.traversal().V().properties().count().next()
 oldEProps = oldGraph.traversal().E().properties().count().next()
 oldByCat = oldGraph.traversal().V().groupCount().by('category').next()
 println "      BJE graph: vertices=${oldVCount} edges=${oldECount} adminPerms=${oldAdminPerms} vProps=${oldVProps} eProps=${oldEProps} byCategory=${oldByCat}"
+// Capture the FULL source schema. index_setup.groovy is NOT a complete schema of
+// a graph the app has been writing to (e.g. runtime-created keys like next_seq),
+// and the Cassandra target runs schema.default=none, so every key/label present
+// in the data must be predefined or GraphSON import throws
+// "Property Key with given name does not exist". We replicate the source schema
+// verbatim (exact dataType + cardinality) further below.
+srcMgmt = oldGraph.openManagement()
+srcKeys = []
+srcMgmt.getRelationTypes(org.janusgraph.core.PropertyKey.class).each { srcKeys.add([name: it.name(), dt: it.dataType(), card: it.cardinality()]) }
+srcEdges = []
+srcMgmt.getRelationTypes(org.janusgraph.core.EdgeLabel.class).each { srcEdges.add([name: it.name(), mult: it.multiplicity()]) }
+srcVLabels = []
+srcMgmt.getVertexLabels().each { srcVLabels.add(it.name()) }
+srcMgmt.rollback()
+println "      BJE schema: keys=" + srcKeys.collect { it.name }.sort() + " edgeLabels=" + srcEdges.collect { it.name }.sort() + " vertexLabels=" + srcVLabels
 println "[1/3] writing GraphSON to ${EXPORT_FILE}"
 oldGraph.io(IoCore.graphson()).writeGraph(EXPORT_FILE)
 oldGraph.close()
@@ -76,6 +91,19 @@ shell = new GroovyShell(binding)
 // not written and the main service won't start on a corrupt target.
 shell.evaluate(schemaSrc)
 println '[2/3] schema applied (LIST cardinality for permissions/values now in place)'
+
+// Complete the schema: add any source property keys / edge labels / vertex
+// labels that index_setup.groovy did not define (e.g. next_seq), using their
+// exact source dataType + cardinality. This is what makes the import robust
+// against schema.default=none for app-created keys.
+compMgmt = newGraph.openManagement()
+addedKeys = []
+srcKeys.each { k -> if (compMgmt.getPropertyKey(k.name) == null) { compMgmt.makePropertyKey(k.name).dataType(k.dt).cardinality(k.card).make(); addedKeys.add(k.name) } }
+addedEdges = []
+srcEdges.each { e -> if (compMgmt.getEdgeLabel(e.name) == null) { compMgmt.makeEdgeLabel(e.name).multiplicity(e.mult).make(); addedEdges.add(e.name) } }
+srcVLabels.each { vl -> if (vl != 'vertex' && compMgmt.getVertexLabel(vl) == null) { compMgmt.makeVertexLabel(vl).make() } }
+compMgmt.commit()
+println "[2/3] schema completion: added missing keys=${addedKeys} edgeLabels=${addedEdges}"
 
 // --- 3. Import data --------------------------------------------------------
 println "[3/3] importing GraphSON from ${EXPORT_FILE}"
