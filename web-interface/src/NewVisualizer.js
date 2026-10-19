@@ -37,7 +37,6 @@ import ComponentAutocomplete from './ComponentAutocomplete.js';
 import { ThemeProvider } from '@emotion/react';
 
 import { unixTimeToISOString } from './utility/utility.js';
-import Authenticator from './components/Authenticator.js';
 import { minWidth } from '@mui/system';
 import { Checkbox, FormLabel } from '@mui/material';
 
@@ -572,7 +571,6 @@ function NewConnectionsPanel() {
 
     return (
         <>
-            <Authenticator/>
             <Grid
                 container
                 direction="column"

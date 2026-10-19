@@ -377,3 +377,72 @@ def test_system_diagram_routes():
     assert admin.get('/api/system_diagram.png').status_code == 404
     assert admin.get('/api/system_diagram.dot?time=0').status_code == 200
     assert app.test_client().get('/api/system_diagram.svg').status_code == 401
+
+
+# --- sign-in through the authenticating proxy (Authelia) ------------------------
+
+SECRET = 'test-proxy-secret'
+U3, U4 = f"zz_sso_{SUF}", f"zz_sso_admin_{SUF}"
+
+
+@pytest.fixture
+def proxied():
+    """A client whose requests arrive as if from the proxy: PROXY_AUTH_SECRET is
+    configured only for the duration of each request, so the session-based
+    `client_as` clients used alongside keep working."""
+    app.config['TESTING'] = True
+    c = app.test_client()
+
+    def request(path, user, groups='', secret=SECRET, method='get'):
+        headers = {'Remote-User': user, 'Remote-Groups': groups}
+        if secret is not None:
+            headers['X-Padloper-Proxy-Secret'] = secret
+        with pytest.MonkeyPatch.context() as m:
+            m.setattr(app_module, 'PROXY_AUTH_SECRET', SECRET)
+            return getattr(c, method)(path, headers=headers)
+    return request
+
+
+def test_proxy_headers_need_the_secret(proxied):
+    assert proxied('/api/whoami', U3, secret=None).status_code == 401
+    assert proxied('/api/whoami', U3, secret='wrong').status_code == 401
+    assert user_row(client_as('master', []), U3) is None, "nothing provisioned"
+
+
+def test_proxy_session_alone_is_not_enough():
+    c = client_as('master', [])
+    with pytest.MonkeyPatch.context() as m:
+        m.setattr(app_module, 'PROXY_AUTH_SECRET', SECRET)
+        assert c.get('/api/whoami').status_code == 401
+
+
+def test_proxy_first_sign_in_creates_readonly_user(proxied):
+    assert ok(proxied('/api/whoami', U3, 'padloper-users'))['login'] == U3
+    assert groups_of(client_as('master', []), U3) == ['readonly']
+    # Signing in again does not duplicate anything.
+    ok(proxied('/api/whoami', U3, 'padloper-users'))
+    assert groups_of(client_as('master', []), U3) == ['readonly']
+
+
+def test_proxy_admin_group_grants_padloper_admin(proxied):
+    ok(proxied('/api/whoami', U4, 'padloper-users,padloper-admins'))
+    assert groups_of(client_as('master', []), U4) == ['admin', 'readonly']
+    ok(proxied('/api/get_user_list', U4, 'padloper-admins'))
+
+
+def test_proxy_session_follows_the_header(proxied):
+    assert ok(proxied('/api/whoami', U3))['login'] == U3
+    assert ok(proxied('/api/whoami', U4, 'padloper-admins'))['login'] == U4
+
+
+def test_proxy_deactivated_user_is_refused(proxied):
+    admin = client_as('master', [])
+    ok(admin.post('/api/disable_user', data={'username': U3}))
+    assert proxied('/api/whoami', U3).status_code == 403
+    ok(admin.post('/api/enable_user', data={'username': U3}))
+    assert ok(proxied('/api/whoami', U3))['login'] == U3
+
+
+def test_logout_returns_proxy_logout_url(proxied):
+    res = ok(proxied('/api/logout', U3, method='post'))
+    assert res['logout_url'] == app_module.LOGOUT_URL

@@ -8,7 +8,6 @@ import {
 from '@mui/material';
 import FlagTypeAddButton from './FlagTypeAddButton.js';
 import FlagTypeReplaceButton from './FlagTypeReplaceButton.js'
-import Authenticator from './components/Authenticator.js';
 import { withBase, requireOkJson } from './paths.js';
 
 /**
@@ -140,7 +139,6 @@ function FlagTypeList() {
     ]);
     return (
         <>
-            <Authenticator />
             <ElementRangePanel
                 min={min}
                 updateMin={(n) => { setMin(n) }}

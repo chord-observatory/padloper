@@ -1,4 +1,4 @@
-// Centralized base-path handling for API and OAuth routes under a subpath
+// Centralized base-path handling for API routes under a subpath
 // Normalize env to ensure only "/padloper" is used by default, and guard
 // against accidental "/" which would escape the subpath.
 function normalizeBasePath(input) {
@@ -11,7 +11,7 @@ function normalizeBasePath(input) {
 
 export const BASE_PATH = normalizeBasePath(process.env.REACT_APP_BASE_PATH);
 
-// Prefix any path (e.g., "/api/endpoint" or "/oauth/getUserData") with BASE_PATH
+// Prefix any path (e.g., "/api/endpoint") with BASE_PATH
 export function withBase(path) {
   if (!path) return BASE_PATH;
   return `${BASE_PATH}${path.startsWith('/') ? path : '/' + path}`;
@@ -28,9 +28,30 @@ export async function requireOkJson(res) {
   return res.json();
 }
 
-export function authHeaders() {
-  const token = (typeof localStorage !== 'undefined') ? localStorage.getItem('accessToken') : null;
-  return token ? { 'Authorization': `Bearer ${token}` } : {};
+// The signed-in user, as established by the backend from the authenticating
+// proxy (Authelia): `{login, logout_url}`, or `{}` if not signed in.
+export async function getCurrentUser() {
+  try {
+    const res = await fetch(withBase('/api/whoami'));
+    return res.ok ? await res.json() : {};
+  } catch (err) {
+    console.error('Failed to load the signed-in user:', err);
+    return {};
+  }
+}
+
+// End the padloper session, then sign out of the proxy too; otherwise the
+// next request would sign straight back in.
+export async function signOut() {
+  let logoutUrl = '/authelia/logout';
+  try {
+    const res = await fetch(withBase('/api/logout'), { method: 'POST' });
+    const data = await res.json();
+    if (data && data.logout_url) logoutUrl = data.logout_url;
+  } catch (err) {
+    console.error('Error signing out:', err);
+  }
+  window.location.assign(logoutUrl);
 }
 
 // Parse a JSON response, turning HTTP errors and `{error: ...}` bodies (which a

@@ -11,7 +11,6 @@ import {
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 import { withBase, requireOkJson } from './paths.js';
-import Authenticator from './components/Authenticator';
 import { unixTimeToISOString } from './utility/utility';
 
 
@@ -102,7 +101,6 @@ function BulkInput() {
 
     return (
         <>
-            <Authenticator />
             <Paper
                 elevation={2}
                 sx={{

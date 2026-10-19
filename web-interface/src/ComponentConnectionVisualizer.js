@@ -31,7 +31,6 @@ import ComponentAutocomplete from './ComponentAutocomplete.js';
 import { ThemeProvider } from '@emotion/react';
 
 import { unixTimeToISOString } from './utility/utility.js';
-import Authenticator from './components/Authenticator.js';
 import { withBase, requireOkJson } from './paths.js';
 
 window.addEventListener("error", (e) => {
@@ -1306,7 +1305,6 @@ function ComponentConnectionsPanel() {
 
     return (
         <>
-            <Authenticator />
             <Grid
                 container
                 direction="column"

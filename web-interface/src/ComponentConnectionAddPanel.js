@@ -16,7 +16,7 @@ import ComponentAutocomplete from './ComponentAutocomplete.js';
 
 import moment from "moment";
 import ErrorMessage from './ErrorMessage.js';
-import { withBase, authHeaders, requireOkJson } from './paths.js';
+import { getCurrentUser } from './paths.js';
 
 /**
  * A styled "panel" component, used as the background for the panel.
@@ -143,21 +143,10 @@ function ComponentConnectionAddPanel(
     }, [userData])
 
     /**
-     * Get the user data via GitHub
+     * Get the signed-in user from the backend
      */
     async function getUserData() {
-        await fetch(withBase(`/oauth/getUserData`), {
-            method: "GET",
-            headers: { ...authHeaders() }
-        })
-        .then(requireOkJson)
-        .then((data) => {
-            setUserData(data);
-        })
-        .catch((err) => {
-            console.error('Failed to load user data:', err);
-            setUserData({});
-        });
+        setUserData(await getCurrentUser());
     }
 
     // return the MUI component.

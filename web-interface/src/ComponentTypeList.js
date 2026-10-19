@@ -9,7 +9,6 @@ from '@mui/material';
 
 import ComponentTypeAddButton from './ComponentTypeAddButton'
 import ComponentTypeReplaceButton from './ComponentTypeReplaceButton.js';
-import Authenticator from './components/Authenticator.js';
 import { withBase, requireOkJson } from './paths.js';
 
 /**
@@ -143,7 +142,6 @@ function ComponentTypeList() {
 
     return (
         <>
-            <Authenticator />
             <ElementRangePanel
                 min={min}
                 updateMin={(n) => { setMin(n) }}

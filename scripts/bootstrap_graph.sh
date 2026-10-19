@@ -4,14 +4,14 @@ set -euo pipefail
 # Bootstrap helper for JanusGraph schema seeding and admin mapping.
 #
 # Usage:
-#   bash scripts/bootstrap_graph.sh <github_login>
-#     - Default: applies schema (if missing) and maps <github_login> to admin.
-#   bash scripts/bootstrap_graph.sh init <github_login>
+#   bash scripts/bootstrap_graph.sh <username>
+#     - Default: applies schema (if missing) and maps <username> to admin.
+#   bash scripts/bootstrap_graph.sh init <username>
 #     - Same as default.
 #   bash scripts/bootstrap_graph.sh schema
 #     - Applies schema only.
-#   bash scripts/bootstrap_graph.sh map-admin <github_login>
-#     - Maps <github_login> to the admin group (ensuring user/group exist).
+#   bash scripts/bootstrap_graph.sh map-admin <username>
+#     - Maps <username> to the admin group (ensuring user/group exist).
 
 # Allow override via environment; default to 'janusgraph'
 JANUS_CONTAINER="${JANUS_CONTAINER:-janusgraph}"
@@ -99,7 +99,7 @@ cmd_map_admin() {
   require_container
   local login="${1:-}"
   if [ -z "$login" ]; then
-    echo "Usage: bash scripts/bootstrap_graph.sh map-admin <github_login>" >&2
+    echo "Usage: bash scripts/bootstrap_graph.sh map-admin <username>" >&2
     exit 1
   fi
   # Guard: ensure schema exists when running map-admin directly (skip if called from init)
@@ -130,7 +130,7 @@ main() {
       shift
       local login="${1:-}"
       if [ -z "$login" ]; then
-        echo "Usage: bash scripts/bootstrap_graph.sh init <github_login>" >&2
+        echo "Usage: bash scripts/bootstrap_graph.sh init <username>" >&2
         exit 1
       fi
       echo "[bootstrap] Initializing schema and admin mapping for '$login' …"
@@ -148,15 +148,15 @@ main() {
     "")
       cat >&2 <<USAGE
 Usage:
-  bash scripts/bootstrap_graph.sh <github_login>
-  bash scripts/bootstrap_graph.sh init <github_login>
+  bash scripts/bootstrap_graph.sh <username>
+  bash scripts/bootstrap_graph.sh init <username>
   bash scripts/bootstrap_graph.sh schema
-  bash scripts/bootstrap_graph.sh map-admin <github_login>
+  bash scripts/bootstrap_graph.sh map-admin <username>
 USAGE
       exit 1
       ;;
     *)
-      # Default: treat the first argument as the GitHub login and run init
+      # Default: treat the first argument as the username and run init
       local login="$subcmd"
       echo "[bootstrap] Initializing schema and admin mapping for '$login' …"
       BOOTSTRAP_INIT=1

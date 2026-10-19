@@ -9,7 +9,6 @@ from '@mui/material';
 import ComponentVersionFilter from './ComponentVersionFilter.js';
 import ComponentVersionAddButton from './ComponentVersionAddButton.js';
 import ComponentVersionReplaceButton from './ComponentVersionReplaceButton.js';
-import Authenticator from './components/Authenticator.js';
 import { withBase, requireOkJson } from './paths.js';
 
 /**
@@ -258,7 +257,6 @@ function ComponentVersionList() {
 
     return (
         <>
-            <Authenticator />
             <ElementRangePanel
                 min={min}
                 updateMin={(n) => { setMin(n) }}

@@ -12,13 +12,11 @@ services:
       dockerfile: flask-interface/Dockerfile.flask_interface
     container_name: flask-interface
     platform: linux/amd64
+    # Sign-in comes from the authenticating site proxy (Authelia); see
+    # PROXY_AUTH_SECRET in .env.template. Only proxied (HTTPS) requests can
+    # sign in, so the session cookie keeps its default Secure flag.
     env_file:
       - .env
-    environment:
-      # Padloper is also used directly over plain HTTP on the ctc network
-      # (http://padloper...:3000), where browsers refuse a Secure cookie.
-      # Set to "true" once all access goes through the HTTPS proxy.
-      SESSION_COOKIE_SECURE: "false"
     depends_on:
       - janusgraph
     ports:
@@ -50,7 +48,6 @@ services:
       context: .
       dockerfile: web-interface/Dockerfile.web_interface
       args:
-        REACT_APP_GITHUB_CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID}
         REACT_APP_BASE_PATH: /padloper
     container_name: web-interface
     platform: linux/amd64
@@ -59,24 +56,6 @@ services:
     networks:
       padloper-network:
         ipv4_address: 172.20.0.21
-    restart: unless-stopped
-    logging: *default-logging
-  oauth-proxy-server:
-    build:
-      context: .
-      dockerfile: oauth-proxy-server/Dockerfile.oauth
-    container_name: oauth-proxy-server
-    platform: linux/amd64
-    env_file:
-      - .env
-    environment:
-      CLIENT_ID: ${GITHUB_OAUTH_CLIENT_ID}
-      CLIENT_SECRET: ${GITHUB_OAUTH_CLIENT_SECRET}
-    ports:
-      - "4000:4000"
-    networks:
-      padloper-network:
-        ipv4_address: 172.20.0.22
     restart: unless-stopped
     logging: *default-logging
   cassandra:

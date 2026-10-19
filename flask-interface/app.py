@@ -7,7 +7,6 @@ import re
 from typing import Any, Callable, Dict, List, Tuple
 from flask import Flask, request, session, Response
 from flask_session import Session
-import requests
 #from flask.scaffold import F
 from gremlin_python.process.traversal import TextP
 from gremlin_python.process.graph_traversal import __
@@ -19,6 +18,7 @@ import padloper as p
 # connection, user and vertex cache, distinct from the one padloper's
 # classes actually use.
 import _global as p_global
+import hmac
 import json
 import os
 from datetime import datetime, timedelta
@@ -30,8 +30,29 @@ load_dotenv()
 # The flask application
 app = Flask(__name__)
 
-# Read configuration from environment, with sensible defaults for local dev
-PROXY_SERVER_URL = os.getenv('PROXY_SERVER_URL', 'http://oauth-proxy-server:4000/')
+# Authentication. Padloper sits behind the site reverse proxy, where Authelia
+# (via nginx auth_request) authenticates every request and passes the user in
+# AUTH_USER_HEADER and their FreeIPA groups in AUTH_GROUPS_HEADER. The backend
+# ports are also reachable on the internal network, so those headers are only
+# trusted when the request also carries PROXY_AUTH_SECRET, which only the proxy
+# knows. With PROXY_AUTH_SECRET set, every request must come through the
+# proxy. Without it (tests, local development) only an existing session or
+# PADLOPER_DEV_USER identifies the user.
+PROXY_AUTH_SECRET = os.getenv('PROXY_AUTH_SECRET', '')
+PROXY_AUTH_SECRET_HEADER = os.getenv('PROXY_AUTH_SECRET_HEADER',
+                                     'X-Padloper-Proxy-Secret')
+AUTH_USER_HEADER = os.getenv('AUTH_USER_HEADER', 'Remote-User')
+AUTH_GROUPS_HEADER = os.getenv('AUTH_GROUPS_HEADER', 'Remote-Groups')
+# Members of these (comma-separated) FreeIPA groups are added to padloper's
+# 'admin' group when they sign in. Removal stays manual.
+ADMIN_SSO_GROUPS = {g.strip() for g in
+                    os.getenv('ADMIN_SSO_GROUPS', 'padloper-admins').split(',')
+                    if g.strip()}
+# Where the UI sends the browser to sign out of the proxy (Authelia) as well.
+LOGOUT_URL = os.getenv('LOGOUT_URL', '/authelia/logout')
+# Local development only: act as this user without a proxy. Ignored whenever
+# PROXY_AUTH_SECRET is set.
+DEV_USER = os.getenv('PADLOPER_DEV_USER', '')
 
 # Set up session: we use flask_session because the default Flask session is
 # client size and we don't want to expose permissions there; here we use a
@@ -44,13 +65,13 @@ app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", os.getenv("FLASK_SECRET_KEY",
 # so the cookie is marked Secure; set SESSION_COOKIE_SECURE=false for a
 # plain-HTTP development setup (browsers exempt http://localhost anyway).
 # SameSite=Lax stops cross-site POSTs from carrying the session (CSRF) while
-# still allowing the OAuth redirect back into the app.
+# still allowing ordinary top-level navigation into the app.
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["SESSION_COOKIE_SECURE"] = os.getenv(
     "SESSION_COOKIE_SECURE", "true").lower() in ("1", "true", "yes")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
-# A signed session cookie is rejected this long after it was last written.
-# (The UI re-establishes the session from the stored GitHub token on load.)
+# A signed session cookie is rejected this long after it was last written;
+# the next proxied request then signs the user in again from the headers.
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
 
 #CONTINUE HERE: test user authentication.
@@ -123,17 +144,105 @@ def set_perms(username):
         session['perms'] = []
 
 
+def _proxy_identity():
+    """Return (username, groups) asserted by the reverse proxy, or None.
+
+    The proxy's headers are only believed when the request carries the shared
+    PROXY_AUTH_SECRET. Without a configured secret, PADLOPER_DEV_USER (if set)
+    stands in for the proxy during local development.
+    """
+    if not PROXY_AUTH_SECRET:
+        return (DEV_USER, []) if DEV_USER else None
+    supplied = request.headers.get(PROXY_AUTH_SECRET_HEADER, '')
+    if not hmac.compare_digest(supplied.encode(), PROXY_AUTH_SECRET.encode()):
+        return None
+    username = request.headers.get(AUTH_USER_HEADER, '').strip()
+    if not username:
+        return None
+    groups = [g.strip() for g in
+              request.headers.get(AUTH_GROUPS_HEADER, '').split(',') if g.strip()]
+    return username, groups
+
+
+def _as_system_user(username):
+    """Act as `username` with every permission while provisioning on their
+    behalf (creating their User vertex, granting group membership). The writes
+    are stamped with their name."""
+    p_global._user = type("_LoginStub", (), {
+        "name": username,
+        # check_permission() treats an empty permission list as "look up the
+        # acting user's permissions", so the stub must be able to answer.
+        "get_permissions": lambda self: list(p.permissions_set),
+    })()
+
+
+def _sign_in(username, groups):
+    """Start a session for a user the proxy has authenticated.
+
+    Creates the User vertex (in 'readonly') on first sign-in; access to
+    padloper at all is already restricted by Authelia. Members of
+    ADMIN_SSO_GROUPS are added to padloper's 'admin' group. Returns an error
+    response for deactivated users, otherwise None.
+    """
+    if _user_is_deactivated(username):
+        return ({'error': 'This account has been deactivated. '
+                          'Please contact an administrator.'}), 403
+    try:
+        user_obj = p.User.from_db(username)
+    except Exception:
+        user_obj = None
+
+    try:
+        if user_obj is None:
+            _as_system_user(username)
+            user_obj = p.User(name=username, groups=[])
+            user_obj.add(permissions=[])
+            try:
+                default_group = p.UserGroup.from_db('readonly')
+            except Exception:
+                default_group = p.UserGroup(name='readonly', permissions=[])
+                default_group.add(permissions=[])
+            user_obj.add_group(default_group)
+
+        if ADMIN_SSO_GROUPS.intersection(groups):
+            try:
+                admin_group = p.UserGroup.from_db('admin')
+            except Exception:
+                # No 'admin' group on this instance (not seeded): nothing to
+                # grant.
+                admin_group = None
+            if admin_group is not None and \
+                    not any(gr.name == 'admin' for gr in user_obj.get_groups()):
+                _as_system_user(username)
+                user_obj.add_group(admin_group)
+    finally:
+        p_global._user = None
+
+    set_perms(username)
+    return None
+
+
 @app.before_request
 def _ensure_padloper_user():
-    """Require a logged-in session for an active user on all routes except
-    login."""
-    # Allow the login endpoint without a session
-    if request.path == '/api/login':
-        return
-
+    """Identify the user on every request: from the proxy's headers when
+    present (starting or switching the session as needed), otherwise from an
+    existing session."""
     # padloper keeps the acting user in a module global; never let the
     # previous request's identity carry over into this one.
     p_global._user = None
+
+    ident = _proxy_identity()
+    if ident is not None:
+        username, groups = ident
+        if session.get('user') != username:
+            session.clear()
+            error = _sign_in(username, groups)
+            if error is not None:
+                return error
+    elif PROXY_AUTH_SECRET:
+        # Production: everything must come through the authenticating proxy.
+        session.clear()
+        return ({'error': 'Authentication required'}), 401
 
     uname = session.get('user')
     if not uname:
@@ -155,101 +264,17 @@ def _ensure_padloper_user():
         session['perms'] = perms
 
 
-@app.route("/api/login", methods=['POST'])
-def login():
-    """ Handle user login.
-
-    This function handles the login process for users. It expects a POST request
-    with a JSON payload containing the user's username and GitHub access token.
-    It then calls a proxy server to retrieve user data from GitHub using the access token,
-    verifies that the retrieved username matches the provided username, and returns
-    a response accordingly.
-
-    Returns:
-        A JSON response indicating the result of the login attempt.
-    """
-    try:
-        username = request.json.get('username')
-        access_token = request.json.get('accessToken')
-
-        if not username or not access_token:
-            return ({'error': 'Username and access token are required'}), 400
-
-        headers = {'Authorization': 'Bearer ' + access_token}
-        response = requests.get(PROXY_SERVER_URL + 'getUserData', headers=headers)
-
-        if response.status_code == 200:
-            data = response.json()
-
-            if data.get('login') == username:
-                # Look up existing user, or bootstrap if this is the very
-                # first user in the system (empty database).
-                try:
-                    user_obj = p.User.from_db(username)
-                except Exception:
-                    if _user_is_deactivated(username):
-                        return ({'error': 'This account has been deactivated. '
-                                          'Please contact an administrator.'}), 403
-                    # Only allow auto-creation when no users exist yet.
-                    existing_users = p.User.get_list()
-                    if len(existing_users) > 0:
-                        return ({'error': 'User not found. '
-                                 'Please contact an administrator to create your account.'}), 403
-                    try:
-                        # Minimal stub for uid stamping during creation
-                        p_global._user = type("_LoginStub", (), {
-                            "name": username,
-                            # check_permission() treats an empty permission
-                            # list as "look up the acting user's permissions",
-                            # so the stub must be able to answer.
-                            "get_permissions": lambda self: list(p.permissions_set),
-                        })()
-                        user_obj = p.User(name=username, groups=[])
-                        user_obj.add(permissions=[])
-
-                        # Ensure a 'readonly' group (no permissions) exists,
-                        # then add the new user to it.
-                        try:
-                            default_group = p.UserGroup.from_db('readonly')
-                        except Exception:
-                            default_group = p.UserGroup(name='readonly', permissions=[])
-                            default_group.add(permissions=[])
-                        try:
-                            user_obj.add_group(default_group)
-                        except Exception:
-                            pass
-                    finally:
-                        p_global._user = None
-
-                # Establish session perms and set current user for this process
-                set_perms(username)
-                try:
-                    p.set_user(username)
-                except Exception:
-                    pass
-                return ({'message': f'Logged in as {username}'}), 200
-            else:
-                return ({'error': 'Username does not match'}), 401
-
-
-
-        return ({'error': 'Failed to retrieve user data from proxy server'}), 500
-    # TODO: make more specific
-    except Exception as e:
-
-        # For printing the exception in the terminal.
-        print(e)
-
-        return {'error': json.dumps(e, default=str)}, 401
+@app.route("/api/whoami")
+def whoami():
+    """Return the signed-in user (established by _ensure_padloper_user)."""
+    return {'login': session.get('user'), 'logout_url': LOGOUT_URL}, 200
 
 
 @app.route("/api/logout", methods=['POST'])
 def logout():
-    """Handle user logout.
-
-    This function handles the logout process for users. It clears the session data,
-    effectively logging the user out.
-    """
+    """End the padloper session. The browser must then go to `logout_url` to
+    sign out of the proxy too; otherwise the next request signs straight back
+    in."""
     session.clear()
     # Clear padloper user so subsequent requests don’t inherit stale identity
     try:
@@ -257,7 +282,7 @@ def logout():
     except Exception:
         pass
 
-    return ({'message': 'Logged out successfully'}), 200
+    return ({'message': 'Logged out successfully', 'logout_url': LOGOUT_URL}), 200
 
 
 @app.route("/api/components_name/<path:name>")

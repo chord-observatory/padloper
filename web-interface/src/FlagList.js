@@ -18,7 +18,6 @@ import Stack from '@mui/material/Stack';
 import ComponentEvent from './ComponentEvent.js';
 import FlagEvent from './FlagEvent.js';
 import DeleteIcon from '@mui/icons-material/Delete';
-import Authenticator from './components/Authenticator.js';
 import { withBase } from './paths.js';
 
 /**
@@ -571,7 +570,6 @@ export default function FlagList() {
 
     return (
         <>
-            <Authenticator />
             <ElementRangePanel
                 width="800px"
                 min={min}

@@ -77,7 +77,7 @@ def main():
     ap = argparse.ArgumentParser(description='Create default user groups and/or map a user to admin group')
     ap.add_argument('--reset-default-groups', action='store_true', help='Drop and recreate readonly/Protected/General')
     ap.add_argument('--skip-default-groups', action='store_true', help='Skip ensuring readonly/Protected/General groups')
-    ap.add_argument('--ensure-admin', metavar='GITHUB_LOGIN', help='Ensure admin group exists and map this user to it (user auto-created if missing)')
+    ap.add_argument('--ensure-admin', metavar='USERNAME', help='Ensure admin group exists and map this user to it (user auto-created if missing)')
     ap.add_argument('--actor', default='master', help='DB user to attribute writes as (default: master)')
     args = ap.parse_args()
 

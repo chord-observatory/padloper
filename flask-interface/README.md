@@ -7,8 +7,9 @@ Quick start
 - With Compose: the service runs as `flask-interface` and is reverse‑proxied by nginx to the web app.
 
 Authentication and sessions
-- The UI authenticates via a GitHub OAuth proxy, then calls `POST /api/login` to establish a server‑side session: `session['user']` and `session['perms']`.
-- On first login, if a `User` does not exist, it is auto‑created and added to the `readonly` group (no permissions).
+- Users sign in at the authenticating reverse proxy (Authelia), which passes the user and their FreeIPA groups in the `Remote-User` / `Remote-Groups` headers. They are trusted only on requests that also carry `PROXY_AUTH_SECRET` in `X-Padloper-Proxy-Secret`; with that secret configured, every request must come through the proxy. The backend keeps a server‑side session (`session['user']`, `session['perms']`) and switches it if the header names someone else.
+- On first sign-in, if a `User` does not exist, it is auto‑created and added to the `readonly` group (no permissions). Members of `ADMIN_SSO_GROUPS` (default `padloper-admins`) are added to `admin`.
+- Without `PROXY_AUTH_SECRET` (tests, local development), only an existing session or `PADLOPER_DEV_USER` identifies the user.
 - Each request sets the acting Padloper user from the session to enable permission checks and write stamping.
 
 Permissions model
@@ -23,8 +24,8 @@ Roles and defaults
 Routes and required permissions
 
 Authentication
-- POST `/api/login` — establish session for a GitHub login. No Padloper permission.
-- POST `/api/logout` — end session. No Padloper permission.
+- GET  `/api/whoami` — the signed-in user (`login`) and the proxy's sign-out URL (`logout_url`). No Padloper permission.
+- POST `/api/logout` — end the padloper session; returns `logout_url`, where the browser must go to sign out of the proxy too. No Padloper permission.
 
 Components: types and versions
 - POST `/api/set_component_type` — create type. Requires `ComponentType;add`.

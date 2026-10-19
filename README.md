@@ -9,12 +9,16 @@ Padloper in Docker](#running-padloper-in-docker) for that option and a
 quickstart. This and the next several sections cover running everything by
 hand (no Docker), which is best for development.
 
-Padloper has four moving parts, started in this order:
+Padloper has three moving parts, started in this order:
 
 1. **JanusGraph** (with Cassandra + Elasticsearch) — the graph database, on port `8182`.
 2. **Flask backend** (`flask-interface`) — the API, on port `4300`.
-3. **OAuth proxy** (`oauth-proxy-server`) — GitHub OAuth helper, on port `4000`.
-4. **React frontend** (`web-interface`) — the UI dev server, on port `4301`.
+3. **React frontend** (`web-interface`) — the UI dev server, on port `4301`.
+
+Sign-in is not part of padloper itself: in production the site reverse proxy
+(Authelia) authenticates users and tells the backend who they are (see
+[Authentication, Users, and Permissions](#authentication-users-and-permissions)).
+Locally, the backend acts as `PADLOPER_DEV_USER` instead.
 
 The installation/configuration of each is described in the sections below.
 This section assumes they are already installed and configured.
@@ -24,36 +28,21 @@ This section assumes they are already installed and configured.
 The helper script `scripts/setup_local.sh` automates the dependency setup. It:
 
 1. **checks prerequisites** (python ≥3.9, node, npm, java),
-2. **validates required configuration up front** (see below) — failing *before*
-   any install work if something is missing,
+2. reports the configuration it will use (see below),
 3. creates a Python virtualenv and installs the backend (`requirements.txt` +
    editable `padloper`),
-4. runs `npm install` for both Node projects,
-5. writes `.env` (generating a `SECRET_KEY` and defaulting `PROXY_SERVER_URL`
-   to `http://localhost:4000/`), then prints the exact start commands.
-
-**Provide your GitHub OAuth credentials first.** The script requires
-`GITHUB_OAUTH_CLIENT_ID` and `GITHUB_OAUTH_CLIENT_SECRET` (it cannot generate
-them). Supply them either by exporting them in your shell **or** by editing them
-into `.env` — the script reads both and persists them to `.env`:
+4. runs `npm install` for the web interface,
+5. writes `.env` (generating a `SECRET_KEY` and defaulting `PADLOPER_DEV_USER`
+   to your login name), then prints the exact start commands.
 
 ```
-export GITHUB_OAUTH_CLIENT_ID=...
-export GITHUB_OAUTH_CLIENT_SECRET=...
 bash scripts/setup_local.sh
-```
-
-Other modes:
-
-```
 bash scripts/setup_local.sh --check-only        # verify prerequisites + config only (no install)
-bash scripts/setup_local.sh --skip-oauth        # set up deps now, add OAuth creds later
 bash scripts/setup_local.sh --with-janusgraph   # also download the JanusGraph 0.6.x bundle
 ```
 
-If the OAuth credentials are missing the script tells you exactly what to set
-and aborts (use `--skip-oauth` to proceed without them). The manual steps below
-explain what the script does and how to run each piece by hand.
+The manual steps below explain what the script does and how to run each piece
+by hand.
 
 ### 1. Start JanusGraph
 
@@ -78,10 +67,10 @@ sudo apt install graphviz   # renders the System Diagram page (Visualizations me
 ```
 Create a `.env` file at the repository root (see
 [Environment configuration](#environment-configuration)). For a local run the
-important value is:
+important values are:
 ```
-PROXY_SERVER_URL=http://localhost:4000/
 SECRET_KEY=<any-random-string>
+PADLOPER_DEV_USER=<your-username>
 ```
 Then start the backend (port `4300`, the port the frontend expects). The graph
 connection defaults to `ws://localhost:8182`; override with the `DB_HOST` env
@@ -91,29 +80,17 @@ cd flask-interface/
 flask run -p 4300
 ```
 
-### 3. Start the OAuth proxy
-
-```
-cd oauth-proxy-server
-npm install      # first run only
-CLIENT_ID=<github-oauth-client-id> CLIENT_SECRET=<github-oauth-client-secret> npm start
-```
-**Note:** the proxy reads `CLIENT_ID` / `CLIENT_SECRET` (not the
-`GITHUB_OAUTH_*` names used by Docker Compose — Compose maps them for you). It
-listens on port `4000`.
-
-### 4. Start the React frontend
+### 3. Start the React frontend
 
 ```
 cd web-interface/
 npm install      # first run only
-REACT_APP_GITHUB_CLIENT_ID=<github-oauth-client-id> REACT_APP_BASE_PATH=/padloper npm start
+REACT_APP_BASE_PATH=/padloper npm start
 ```
 The dev server runs on port `4301` and serves the app under `/padloper`. Its
 built-in dev proxy (`src/setupProxy.js`) forwards `/api` → `localhost:4300`
-(Flask) and `/oauth` → `localhost:4000` (OAuth proxy), so no nginx is needed
-locally. Override those targets with the `API_URL` / `OAUTH_URL` env vars if
-needed. Open <http://localhost:4301/padloper> in your browser.
+(Flask), so no nginx is needed locally. Override that target with the
+`API_URL` env var if needed. Open <http://localhost:4301/padloper> in your browser.
 
 ## JanusGraph Installation Instructions
 
@@ -258,26 +235,30 @@ configure the Flask CLI, and the root `.env` file for application settings.
 
 Copy `.env.template` to `.env` and set values as needed:
 
-- `PROXY_SERVER_URL` — OAuth proxy base URL the Flask backend calls. Use
-  `http://oauth-proxy-server:4000/` under Docker Compose, or
-  `http://localhost:4000/` for a local (non-Docker) run.
 - `SECRET_KEY` — Flask secret key for sessions.
-- `GITHUB_OAUTH_CLIENT_ID` — GitHub OAuth App Client ID (frontend + proxy).
-- `GITHUB_OAUTH_CLIENT_SECRET` — GitHub OAuth App Client Secret (proxy only).
+- `PROXY_AUTH_SECRET` — shared secret the authenticating proxy sends in the
+  `X-Padloper-Proxy-Secret` header. When set (production), every request must
+  carry it, and the user comes from the proxy's `Remote-User` header. Leave it
+  empty for local development.
+- `ADMIN_SSO_GROUPS` — FreeIPA groups (comma-separated) whose members are added
+  to padloper's `admin` group at sign-in. Default `padloper-admins`.
+- `LOGOUT_URL` — where "Sign out" sends the browser after ending the padloper
+  session. Default `/authelia/logout`.
+- `PADLOPER_DEV_USER` — local development only: the user the backend acts as
+  when there is no proxy. Ignored when `PROXY_AUTH_SECRET` is set.
 
 Notes:
 - `.env` is ignored by git; do not commit secrets.
 - The session cookie is `Secure` and `SameSite=Lax` by default. Set `SESSION_COOKIE_SECURE=false` for a plain-HTTP deployment (the dev compose file does this); browsers exempt `http://localhost`.
-- When running via Docker Compose, the `.env` file at the repository root is injected into the `flask-interface` and `oauth-proxy-server` services automatically, and is also used for build-time args for the web interface. Compose maps `GITHUB_OAUTH_CLIENT_ID` → the proxy's `CLIENT_ID` and the web build's `REACT_APP_GITHUB_CLIENT_ID` for you.
-- When running locally, the backend loads `.env` via `python-dotenv`, **but the `oauth-proxy-server` and the React dev server do not**. For a by-hand run you must pass their env vars directly (note the different names):
-  - OAuth proxy: `CLIENT_ID` and `CLIENT_SECRET` (the values of `GITHUB_OAUTH_CLIENT_ID` / `_SECRET`).
-  - React dev server: `REACT_APP_GITHUB_CLIENT_ID` and `REACT_APP_BASE_PATH=/padloper`.
-  - See the [start-everything-up](#how-to-start-everything-up) steps for the exact commands.
+- When running via Docker Compose, the `.env` file at the repository root is injected into the `flask-interface` service automatically.
+- When running locally, the backend loads `.env` via `python-dotenv`. The React dev server needs only `REACT_APP_BASE_PATH=/padloper` (see the [start-everything-up](#how-to-start-everything-up) steps).
 
 ## Authentication, Users, and Permissions
 
-- Sign-in is via GitHub OAuth (the `oauth-proxy-server`). After successful OAuth in the web UI, the frontend calls the backend `/api/login` to establish a server-side session for your username and permissions.
-- First login auto-provisioning: If your GitHub login does not yet exist as a `User` vertex, the backend creates it on first login so you can be assigned to groups immediately after.
+- Sign-in happens at the site reverse proxy (Authelia, with FreeIPA accounts and two-factor authentication); padloper has no login page of its own. The proxy passes the signed-in user and their FreeIPA groups to the backend in the `Remote-User` / `Remote-Groups` headers, and the backend trusts them only together with the `PROXY_AUTH_SECRET` header, since the backend ports are reachable without the proxy. `GET /api/whoami` returns the current user.
+- First sign-in auto-provisioning: a user's `User` vertex is created, in the `readonly` group, the first time they reach padloper. Who may reach padloper at all is decided by Authelia (the `padloper-users` and `padloper-admins` FreeIPA groups).
+- Members of the FreeIPA `padloper-admins` group (`ADMIN_SSO_GROUPS`) are added to padloper's `admin` group when they sign in. Removing someone from `admin` is still done in padloper.
+- Sign out ends the padloper session and then signs out of Authelia (`LOGOUT_URL`); otherwise the next request would sign straight back in.
 - Write operations (adding/replacing vertices/edges) require an authenticated user; the backend associates your username with writes and enforces permissions.
 - Initial admin: Running `index_setup.txt` seeds a `master` user and an `admin` user group with broad permissions. Use this account to bootstrap additional users/groups.
 - Managing users/groups:
@@ -296,14 +277,13 @@ The frontend uses React 18 and `react-scripts` 5.x — the old "must be 4.0.3"
 constraint no longer applies.
 
 The dev server is started with `npm start` (see
-[step 4 above](#4-start-the-react-frontend)). It needs two env vars:
+[step 3 above](#3-start-the-react-frontend)). It needs one env var:
 
-- `REACT_APP_GITHUB_CLIENT_ID` — your GitHub OAuth App client ID (enables sign-in).
 - `REACT_APP_BASE_PATH` — the URL base path; use `/padloper` to match the rest
   of the stack.
 
-During local development, `src/setupProxy.js` proxies API and OAuth requests to
-the backend (`4300`) and OAuth proxy (`4000`) so you don't need nginx. In
+During local development, `src/setupProxy.js` proxies API requests to the
+backend (`4300`) so you don't need nginx. In
 production (Docker), nginx handles this routing instead and the app is served
 from the static build.
 
@@ -331,19 +311,19 @@ docker exec -it flask-interface sh -c "export PYTHONPATH=$PYTHONPATH:/; python3 
 
 ### Bootstrap Helper
 
-To initialize the graph schema and map your GitHub user to the `admin` group, you can use `scripts/bootstrap_graph.sh`.
+To initialize the graph schema and map a user (your FreeIPA username, or `PADLOPER_DEV_USER` locally) to the `admin` group, you can use `scripts/bootstrap_graph.sh`.
 
 - Prerequisite: start the stack first:
   - `docker compose up -d`
 - Default (apply schema if missing, then map user to admin):
-  - `bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN`
+  - `bash scripts/bootstrap_graph.sh YOUR_USERNAME`
 - Schema only:
   - `bash scripts/bootstrap_graph.sh schema`
 - Map user to admin only (requires schema already applied):
-  - `bash scripts/bootstrap_graph.sh map-admin YOUR_GH_LOGIN`
+  - `bash scripts/bootstrap_graph.sh map-admin YOUR_USERNAME`
 - The script waits for JanusGraph’s Gremlin server to become ready; if schema appears to exist (seeded `master` user), it will skip reapplying it.
 - Override container names if you customized compose service names:
-  - `JANUS_CONTAINER=janusgraph FLASK_CONTAINER=flask-interface bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN`
+  - `JANUS_CONTAINER=janusgraph FLASK_CONTAINER=flask-interface bash scripts/bootstrap_graph.sh YOUR_USERNAME`
 
 
 ### Brief explanation of Nginx and Gunicorn
@@ -355,31 +335,31 @@ Nginx provides provides another layer of managing requests and load balancing, i
 
 ## Quickstart
 
-The steps below bring up a fresh system with persistent data using Docker Compose, initialize the database schema, and prepare admin access via your GitHub user.
+The steps below bring up a fresh system with persistent data using Docker Compose, initialize the database schema, and prepare admin access for your user.
 
 1) Prerequisites
 - Docker and Docker Compose V2 installed (so you can run `docker compose`).
-- A GitHub OAuth App (Client ID/Secret) for sign-in.
+- For production, the site reverse proxy with Authelia in front (it signs users in and sends the `PROXY_AUTH_SECRET` header).
 
 2) Configure environment
 - Copy `.env.template` to `.env` and set:
-  - `GITHUB_OAUTH_CLIENT_ID`, `GITHUB_OAUTH_CLIENT_SECRET`
   - `SECRET_KEY` (any secret string for Flask sessions)
-  - Leave `PROXY_SERVER_URL` as default when using Compose.
+  - `PROXY_AUTH_SECRET` (production: the value the proxy sends), or
+    `PADLOPER_DEV_USER` (local testing without the proxy)
 
 3) Start services
 ```
 docker compose up -d
 ```
 
-4) Initialize schema and map your GitHub user to admin (one command)
-- Easiest: run the helper (inside the repo, replace YOUR_GH_LOGIN):
+4) Initialize schema and map your user to admin (one command)
+- Easiest: run the helper (inside the repo, replace YOUR_USERNAME):
 ```
-bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN
+bash scripts/bootstrap_graph.sh YOUR_USERNAME
 ```
 
 5) Use the app
-- Sign in via GitHub. The header will log in to the backend and establish your session.
+- Open it through the proxy (or directly, with `PADLOPER_DEV_USER` set); the backend establishes your session from the proxy's headers.
 - Create users/groups via the UI (Manage Users) or APIs.
 
 ### Persistence across reboots
@@ -406,7 +386,7 @@ docker compose down
 docker volume rm padloper_user_cassandra_data padloper_user_es_data padloper_user_janusgraph_data
 docker compose up -d
 # Re-run schema + seeding:
-bash scripts/bootstrap_graph.sh YOUR_GH_LOGIN
+bash scripts/bootstrap_graph.sh YOUR_USERNAME
 ```
 
 - Full reset (containers + data):
@@ -418,9 +398,8 @@ docker compose up -d --build
 
 What to keep to avoid data loss:
 - Do NOT remove the named volumes if you want to preserve graph data.
-- Keep your `.env` file for OAuth/secret configuration.
+- Keep your `.env` file for the secret configuration.
 - App images/containers can be rebuilt safely; data lives in the volumes.
 
 ### Notes on authentication
-- The UI signs in via GitHub OAuth. After OAuth, it calls `/api/login` to set a server-side session (username + permissions).
-- On first login, if your GitHub login does not yet exist as a `User` vertex, the backend auto‑creates it so you can be assigned to groups immediately after.
+- See [Authentication, Users, and Permissions](#authentication-users-and-permissions): padloper trusts the signed-in user named by the authenticating proxy (Authelia), creating their `User` vertex in `readonly` on first sign-in.

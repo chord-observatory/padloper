@@ -19,8 +19,7 @@ import {
   Routes,
   Route,
 } from "react-router-dom";
-import Login from './Login.js';
-import { OAuthContext, useOAuthContext } from './contexts/OAuthContext.js';
+import Home from './Home.js';
 import UserManagementPage from './UserManagement.js';
 import UserGroupManagementPage from './UserGroupManagement.js';
 import UserCreatePage from './UserCreate.js';
@@ -50,21 +49,11 @@ function App() {
 //      e.stopImmediatePropagation();
     }
   });
-  // if (localStorage.getItem("accessToken") === null) {
-  //   return(
-  //     <Login />
-  //   );
-  // }
 
   return (
-    <OAuthContext.Provider value={useOAuthContext()}>
       <div className="App">
 
       <Router basename={BASE_PATH}>
-        {/* {localStorage.getItem("accessToken") === null ?
-        <></> :
-        <Header />
-      } */}
         <Header />
 
         <Routes>
@@ -76,7 +65,7 @@ function App() {
           <Route
             exact={false}
             path="/"
-            element={<Login />}
+            element={<Home />}
           />
 
           <Route
@@ -254,7 +243,6 @@ function App() {
 
       </div>
 
-    </OAuthContext.Provider>
 
   );
 }

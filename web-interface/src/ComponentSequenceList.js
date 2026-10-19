@@ -9,7 +9,6 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 
 import { withBase, requireOkJson } from './paths.js';
-import Authenticator from './components/Authenticator.js';
 import ElementList from './ElementList.js';
 import ElementRangePanel from './ElementRangePanel.js';
 import ErrorMessage from './ErrorMessage.js';
@@ -355,7 +354,6 @@ function ComponentSequenceList() {
 
     return (
         <>
-            <Authenticator />
             <ElementRangePanel
                 min={min}
                 updateMin={(n) => { setMin(n) }}

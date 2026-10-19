@@ -6,11 +6,8 @@ import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import MenuIcon from '@mui/icons-material/Menu';
-import GithubIcon from "mdi-react/GithubIcon";
-import axios from 'axios'
-import { useState, useEffect, useContext } from 'react';
-import { OAuthContext } from './contexts/OAuthContext';
-import { withBase, authHeaders, requireOkJson } from './paths.js';
+import { useState, useEffect } from 'react';
+import { withBase, getCurrentUser, signOut } from './paths.js';
 
 import HeaderMenuButton from './HeaderMenuButton.js';
 import { useNavigate, Link } from 'react-router-dom';
@@ -23,37 +20,16 @@ function Header() {
     const [anchorEl, setAnchorEl] = useState(null);
     const open = Boolean(anchorEl);
     const [userData, setUserData] = useState({});
-    const { accessToken, setAccessToken } = useContext(OAuthContext);
     const navigate = useNavigate();
     let login_ok = true;
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [mobileOpen, setMobileOpen] = useState(false);
 
+    // The backend signs the user in from the proxy's (Authelia's) headers.
     useEffect(() => {
-        // TODO: remove local storage
-        if (localStorage.getItem("accessToken"))
-            getUserData();
-    }, []
-    // [accessToken]
-    )
-
-    // login to backend
-    useEffect(() => {
-        if (userData.login) {
-            axios.post(withBase("/api/login"), {
-                username: userData.login,
-                accessToken: localStorage.getItem("accessToken")
-            })
-            .then(res => {
-                console.log(res.data)
-            })
-            .catch(err => {
-                const msg = err?.response?.data?.error || 'Login failed';
-                console.error(msg);
-            })
-        }
-    }, [userData])
+        getCurrentUser().then(setUserData);
+    }, [])
 
     const handleClick = (event) => {
         setAnchorEl(event.currentTarget);
@@ -81,24 +57,7 @@ function Header() {
         }
     }, [userData]);
 
-    // TODO: export function to use elsewhere
-    async function getUserData() {
-      await fetch(withBase(`/oauth/getUserData`), {
-        method: "GET",
-        headers: { ...authHeaders() }
-      })
-      .then(requireOkJson)
-      .then((data) => {
-        setUserData(data);
-      })
-      .catch((err) => {
-        console.error('Failed to load user data:', err);
-        setUserData({});
-      });
-    }
-
-    // TODO: change to network context
-    if (localStorage.getItem("accessToken") === null) {
+    if (!userData.login) {
         return <></>;
     }
     return (
@@ -244,7 +203,7 @@ function Header() {
                 // aria-haspopup="true"
                 // aria-expanded={open ? 'true' : undefined}
                 >
-                    <Avatar alt="user" src={userData ? userData.avatar_url : ''} />
+                    <Avatar alt={userData.login}>{userData.login.charAt(0).toUpperCase()}</Avatar>
                 </IconButton>
                 <Menu
                     anchorEl={anchorEl}
@@ -253,30 +212,10 @@ function Header() {
                     onClose={handleClose}
                     onClick={handleClose}
                 >
-                    <MenuItem>
-                    {/*
-                    avatar: https://mui.com/material-ui/react-avatar/
-                    menu: https://mui.com/material-ui/react-menu/
-                    */}
-                        <a href={userData? userData.html_url : ''} style={{ display: 'flex', alignItems: 'center', 'textDecoration': 'none', 'color': 'black'}}>
-                            <GithubIcon style={{ marginRight: '5px' }} /> {userData ? userData.login : ''}
-                        </a>
+                    <MenuItem disabled>
+                        Signed in as {userData.login}
                     </MenuItem>
-                    <MenuItem
-                        // remove local storage
-                        onClick={() => {
-                            localStorage.removeItem("accessToken");
-                            axios.post(withBase("/api/logout"))
-                            .then(res => {
-                                console.log(res.data)
-                            })
-                            .catch(err => {
-                                console.error('Error:', err);
-                            })
-                            window.location.reload(false);
-                        }
-                        // onClick={() => { setAccessToken(''); }
-                    }>
+                    <MenuItem onClick={signOut}>
                         Sign out
                     </MenuItem>
                 </Menu>
@@ -360,16 +299,11 @@ function Header() {
                                 sx={{ px: 2, pt: 2, pb: 0 }}
                                 primaryTypographyProps={{ fontWeight: 'bold' }}
                             />
-                            <ListItemButton component={'a'} href={userData.html_url} target="_blank" rel="noopener noreferrer" onClick={() => setMobileOpen(false)}>
-                                <ListItemText primary="GitHub Profile" />
-                            </ListItemButton>
-                            <ListItemButton onClick={() => {
-                                localStorage.removeItem("accessToken");
-                                axios.post(withBase("/api/logout"))
-                                    .then(res => { console.log(res.data); })
-                                    .catch(err => { console.error('Error:', err); })
-                                    .finally(() => { window.location.reload(false); });
-                            }}>
+                            <ListItemText
+                                secondary={`Signed in as ${userData.login}`}
+                                sx={{ px: 2 }}
+                            />
+                            <ListItemButton onClick={signOut}>
                                 <ListItemText primary="Sign out" />
                             </ListItemButton>
                         </>

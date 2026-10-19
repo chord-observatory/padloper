@@ -39,8 +39,7 @@ import {
     useParams
 } from "react-router-dom";
 import { Typography } from '@mui/material';
-import Authenticator from './components/Authenticator.js';
-import { withBase, authHeaders, requireOkJson } from './paths.js';
+import { withBase, requireOkJson, getCurrentUser } from './paths.js';
 
 /**
  * A styled Paper component that represents the root for the component page.
@@ -397,23 +396,10 @@ function ComponentPage() {
     }, [userData])
 
     /**
-     * Get the user data via GitHub
+     * Get the signed-in user from the backend
      */
     async function getUserData() {
-        await fetch(withBase(`/oauth/getUserData`), {
-            method: "GET",
-            headers: {
-                ...authHeaders()
-            }
-        })
-        .then(requireOkJson)
-        .then((data) => {
-            setUserData(data);
-        })
-        .catch((err) => {
-            console.error('Failed to load user data:', err);
-            setUserData({});
-        });
+        setUserData(await getCurrentUser());
     }
 
 
@@ -1358,7 +1344,6 @@ function ComponentPage() {
     // return all the good stuff
     return (
         <>
-        <Authenticator />
         <Root>
             {content}
         </Root>

@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 import { styled } from '@mui/material/styles';
 import { Paper, Typography, Grid, Stack, Box, Button } from '@mui/material';
 
-import Authenticator from './components/Authenticator';
 
 
 const Item = styled(Paper)(({ theme }) => ({
@@ -65,7 +64,6 @@ function Barcode() {
 
     return (
         <>
-            <Authenticator />
             <Paper
                 sx={{
                     mt: 4,

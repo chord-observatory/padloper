@@ -4,29 +4,26 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # Dockerless local setup for padloper.
 #
-# Prepares a fresh checkout to run the four components by hand (no Docker):
+# Prepares a fresh checkout to run the three components by hand (no Docker):
 #   1. JanusGraph (+ Cassandra + Elasticsearch)  - graph DB, port 8182
 #   2. flask-interface (Flask backend)           - API, port 4300
-#   3. oauth-proxy-server (Node)                  - GitHub OAuth helper, 4000
-#   4. web-interface (React dev server)           - UI, port 4301
+#   3. web-interface (React dev server)           - UI, port 4301
 #
-# It validates the required environment configuration up front, then handles
-# dependency setup for 2-4 (Python venv + packages, npm installs) and writes
+# It validates the environment configuration up front, then handles
+# dependency setup for 2-3 (Python venv + packages, npm installs) and writes
 # the .env file. JanusGraph is optional and heavy; pass --with-janusgraph to
 # download/extract the bundle.
 #
-# Required configuration (provide via your shell environment OR an existing
-# .env file; the script persists them to .env):
-#   GITHUB_OAUTH_CLIENT_ID      - GitHub OAuth App client ID
-#   GITHUB_OAUTH_CLIENT_SECRET  - GitHub OAuth App client secret
-# Auto-handled if absent:
+# Configuration (from your shell environment OR an existing .env file; the
+# script persists it to .env). Nothing has to be supplied:
 #   SECRET_KEY                  - generated (Flask session secret)
-#   PROXY_SERVER_URL            - defaults to http://localhost:4000/
+#   PADLOPER_DEV_USER           - defaults to $USER. In production the
+#                                 authenticating proxy (Authelia) names the
+#                                 user; locally the backend acts as this one.
 #
 # Usage:
 #   bash scripts/setup_local.sh                # validate config, then full setup
 #   bash scripts/setup_local.sh --check-only   # verify prerequisites + config only
-#   bash scripts/setup_local.sh --skip-oauth   # set up deps without OAuth creds
 #   bash scripts/setup_local.sh --with-janusgraph
 #   bash scripts/setup_local.sh --help
 #
@@ -46,10 +43,6 @@ ENV_FILE="$REPO_ROOT/.env"
 
 CHECK_ONLY=0
 WITH_JANUSGRAPH=0
-SKIP_OAUTH=0
-
-# Variables the user must supply (cannot be auto-generated).
-REQUIRED_VARS=(GITHUB_OAUTH_CLIENT_ID GITHUB_OAUTH_CLIENT_SECRET)
 
 # --- logging helpers -------------------------------------------------------
 info()  { printf '\033[0;34m[setup]\033[0m %s\n' "$*"; }
@@ -62,22 +55,18 @@ usage() {
   cat <<'EOF'
 Dockerless local setup for padloper.
 
-Prepares a fresh checkout to run the four components by hand (no Docker):
+Prepares a fresh checkout to run the three components by hand (no Docker):
   1. JanusGraph (+ Cassandra + Elasticsearch)  - graph DB, port 8182
   2. flask-interface (Flask backend)           - API, port 4300
-  3. oauth-proxy-server (Node)                  - GitHub OAuth helper, 4000
-  4. web-interface (React dev server)           - UI, port 4301
+  3. web-interface (React dev server)           - UI, port 4301
 
-Required configuration (via shell environment OR an existing .env file):
-  GITHUB_OAUTH_CLIENT_ID      GitHub OAuth App client ID
-  GITHUB_OAUTH_CLIENT_SECRET  GitHub OAuth App client secret
-Auto-handled if absent:
-  SECRET_KEY (generated), PROXY_SERVER_URL (defaults to http://localhost:4000/)
+Configuration (via shell environment OR an existing .env file), auto-handled
+if absent: SECRET_KEY (generated), PADLOPER_DEV_USER (defaults to $USER; the
+backend acts as this user, since there is no authenticating proxy locally).
 
 Usage:
   bash scripts/setup_local.sh                # validate config, then full setup
   bash scripts/setup_local.sh --check-only   # verify prerequisites + config only
-  bash scripts/setup_local.sh --skip-oauth   # set up deps without OAuth creds
   bash scripts/setup_local.sh --with-janusgraph
   bash scripts/setup_local.sh --help
 
@@ -93,7 +82,6 @@ EOF
 for arg in "$@"; do
   case "$arg" in
     --check-only)      CHECK_ONLY=1 ;;
-    --skip-oauth)      SKIP_OAUTH=1 ;;
     --with-janusgraph) WITH_JANUSGRAPH=1 ;;
     -h|--help)         usage ;;
     *) err "Unknown argument: $arg (try --help)"; exit 2 ;;
@@ -136,7 +124,6 @@ mask() {            # redact secrets for display
   local var="$1" val="$2"
   case "$var" in
     *SECRET*|SECRET_KEY) printf 'hidden' ;;
-    GITHUB_OAUTH_CLIENT_ID) printf '%s…' "${val:0:6}" ;;
     *) printf '%s' "$val" ;;
   esac
 }
@@ -186,8 +173,8 @@ check_prereqs() {
 
 # ---------------------------------------------------------------------------
 # 2. Environment configuration preflight
-#    mode=apply -> writes .env (generate SECRET_KEY, default PROXY, persist
-#                  provided values); mode=check -> read-only report.
+#    mode=apply -> writes .env (generate SECRET_KEY, default
+#                  PADLOPER_DEV_USER); mode=check -> read-only report.
 # ---------------------------------------------------------------------------
 preflight_env() {
   local mode="$1"
@@ -211,52 +198,13 @@ preflight_env() {
     info "SECRET_KEY: not set (will be generated on a full run)"
   fi
 
-  # PROXY_SERVER_URL — default to localhost.
-  local proxy; proxy="$(env_effective PROXY_SERVER_URL)"
-  if [ -z "$proxy" ]; then proxy="http://localhost:4000/"; fi
-  [ "$mode" = "apply" ] && env_upsert PROXY_SERVER_URL "$proxy"
-  ok "PROXY_SERVER_URL: $proxy"
-
-  # Required GitHub OAuth credentials.
-  local missing=()
-  local var val
-  for var in "${REQUIRED_VARS[@]}"; do
-    val="$(env_effective "$var")"
-    if [ -z "$val" ]; then
-      missing+=("$var"); err "$var: MISSING"
-    else
-      [ "$mode" = "apply" ] && env_upsert "$var" "$val"
-      ok "$var: set ($(mask "$var" "$val"))"
-    fi
-  done
-
-  if [ "${#missing[@]}" -gt 0 ]; then
-    {
-      echo
-      warn "Required configuration is missing (needed for GitHub sign-in):"
-      for var in "${missing[@]}"; do printf '         - %s\n' "$var"; done
-      cat <<EOF
-
-Provide them, then re-run — either:
-  (a) export in your shell:
-        export GITHUB_OAUTH_CLIENT_ID=...
-        export GITHUB_OAUTH_CLIENT_SECRET=...
-  (b) edit the values into ${ENV_FILE}
-
-Create the credentials at:
-  GitHub → Settings → Developer settings → OAuth Apps → New OAuth App
-EOF
-    } >&2
-    if [ "$SKIP_OAUTH" -eq 1 ]; then
-      warn "--skip-oauth set: continuing without GitHub OAuth credentials."
-      warn "Sign-in will not work until you set them in ${ENV_FILE}."
-    else
-      err "Aborting before install. Re-run with --skip-oauth to set up deps anyway."
-      exit 1
-    fi
-  else
-    ok "All required environment variables are set."
-  fi
+  # PADLOPER_DEV_USER — default to the login name. Without the
+  # authenticating proxy, the backend acts as this user (created in
+  # 'readonly' on first use; see README for making it an admin).
+  local devuser; devuser="$(env_effective PADLOPER_DEV_USER)"
+  if [ -z "$devuser" ]; then devuser="${USER:-dev}"; fi
+  [ "$mode" = "apply" ] && env_upsert PADLOPER_DEV_USER "$devuser"
+  ok "PADLOPER_DEV_USER: $devuser"
 }
 
 # ---------------------------------------------------------------------------
@@ -289,7 +237,6 @@ npm_install_dir() {
 }
 
 setup_node() {
-  npm_install_dir "$REPO_ROOT/oauth-proxy-server"
   npm_install_dir "$REPO_ROOT/web-interface"
   ok "Node projects ready."
 }
@@ -348,14 +295,8 @@ Next steps — start each service in its own terminal:
      source venv/bin/activate
      ( cd flask-interface && flask run -p 4300 )
 
-  The Node services below do NOT read .env, so load it into your shell first:
-     set -a; . ./.env; set +a
-
-  2) OAuth proxy (:4000)
-     ( cd oauth-proxy-server && CLIENT_ID="\$GITHUB_OAUTH_CLIENT_ID" CLIENT_SECRET="\$GITHUB_OAUTH_CLIENT_SECRET" npm start )
-
-  3) React frontend (:4301)
-     ( cd web-interface && REACT_APP_GITHUB_CLIENT_ID="\$GITHUB_OAUTH_CLIENT_ID" REACT_APP_BASE_PATH=/padloper npm start )
+  2) React frontend (:4301)
+     ( cd web-interface && REACT_APP_BASE_PATH=/padloper npm start )
 
   Then open  http://localhost:4301/padloper
 EOF

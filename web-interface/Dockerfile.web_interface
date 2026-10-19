@@ -25,9 +25,7 @@ COPY ./web-interface/public/ /web-interface/public
 COPY ./web-interface/src/ /web-interface/src
 
 # Build-time env for CRA
-ARG REACT_APP_GITHUB_CLIENT_ID
 ARG REACT_APP_BASE_PATH
-ENV REACT_APP_GITHUB_CLIENT_ID=${REACT_APP_GITHUB_CLIENT_ID}
 ENV REACT_APP_BASE_PATH=${REACT_APP_BASE_PATH:-/padloper}
 # There is no lockfile, so every build floats to the newest transitive
 # versions; the CRA ESLint plugin currently fails with "Environment key
